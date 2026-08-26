@@ -24,10 +24,19 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     tFade: 0
   };
 
-  var MAX_PARTICULAS = 700;
+  var MAX_PARTICULAS = 900;
+
+  /* Lo que se descarta primero cuando se llena: hay mil gotas y una sola onda
+     expansiva, así que tirar la onda para hacerle lugar a una gota arruinaba
+     justo el efecto que más se mira. */
+  var SACRIFICABLES = { gota: 1, chispa: 1, humo: 1, pedazo: 1 };
 
   function agregar(p) {
-    if (sis.particulas.length >= MAX_PARTICULAS) sis.particulas.shift();
+    if (sis.particulas.length >= MAX_PARTICULAS) {
+      var i = 0;
+      while (i < sis.particulas.length && !SACRIFICABLES[sis.particulas[i].tipo]) i++;
+      sis.particulas.splice(i < sis.particulas.length ? i : 0, 1);
+    }
     sis.particulas.push(p);
   }
 
@@ -220,6 +229,53 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     }
   };
 
+  /* Onda expansiva: el anillo que se abre y se afina. Es lo que le da escala a
+     una explosión; sin él, un estallido es una mancha naranja. */
+  sis.onda = function (x, y, radioMax, color, dur, grosor) {
+    agregar({
+      tipo: 'onda',
+      x: x, y: y,
+      vx: 0, vy: 0,
+      vida: dur || 0.45, max: dur || 0.45,
+      tam: radioMax,
+      grosor: grosor || 5,
+      color: color || '#ffd9a0'
+    });
+  };
+
+  /* Bola de fuego: varias capas con vida distinta, para que el centro dure más
+     que los bordes y se lea como fuego y no como un círculo que se apaga. */
+  sis.bolaFuego = function (x, y, radio, capas) {
+    var n = capas || 5;
+    for (var i = 0; i < n; i++) {
+      var k = i / n;
+      agregar({
+        tipo: 'fuego',
+        x: x + (Math.random() - 0.5) * radio * 0.5,
+        y: y + (Math.random() - 0.5) * radio * 0.4,
+        vx: (Math.random() - 0.5) * 60,
+        vy: -20 - Math.random() * 60,
+        vida: 0.22 + (1 - k) * 0.4, max: 0.62,
+        tam: radio * (0.45 + (1 - k) * 0.55),
+        gravedad: -40
+      });
+    }
+    // Lenguas de fuego que salen disparadas
+    for (var f = 0; f < 10; f++) {
+      var ang = Math.random() * Math.PI * 2;
+      var vel = 120 + Math.random() * 320;
+      agregar({
+        tipo: 'fuego',
+        x: x, y: y,
+        vx: Math.cos(ang) * vel,
+        vy: Math.sin(ang) * vel * 0.7 - 40,
+        vida: 0.18 + Math.random() * 0.3, max: 0.5,
+        tam: radio * (0.12 + Math.random() * 0.18),
+        gravedad: 120
+      });
+    }
+  };
+
   sis.destello = function (x, y, radio, color, dur) {
     agregar({
       tipo: 'destello',
@@ -361,6 +417,45 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     for (var i = 0; i < sis.particulas.length; i++) {
       var p = sis.particulas[i];
       var k = G.clamp(p.vida / p.max, 0, 1);
+
+      if (p.tipo === 'onda') {
+        var kk = 1 - k;                       // 0 al nacer, 1 al morir
+        var r = p.tam * (0.15 + kk * 0.85);
+        ctx.save();
+        ctx.globalAlpha = k * 0.9;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.grosor * k;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+        // Halo interior, más tenue
+        ctx.globalAlpha = k * 0.35;
+        ctx.lineWidth = p.grosor * k * 2.4;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * 0.82, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+
+      if (p.tipo === 'fuego') {
+        var rf = p.tam * (0.6 + (1 - k) * 0.7);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, k * 1.4);
+        var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rf);
+        // De blanco al centro a rojo humo en el borde, según lo que le queda
+        g.addColorStop(0, k > 0.55 ? 'rgba(255,250,225,0.95)' : 'rgba(255,190,110,0.85)');
+        g.addColorStop(0.45, 'rgba(255,150,50,0.65)');
+        g.addColorStop(1, 'rgba(120,40,10,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, rf, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
 
       if (p.tipo === 'destello') {
         G.luz(ctx, p.x, p.y, p.tam * (0.6 + k * 0.6), p.color, k * 0.9);

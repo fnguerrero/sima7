@@ -85,6 +85,11 @@ estés en la nube, no te ven); flash los deja aturdidos unos segundos, sin
 disparar y viendo estrellitas. Se ciclan con una tecla y se reponen en cajones
 repartidos por los niveles.
 
+Salen en arco y llegan a unos once tiles —más si venís corriendo, porque suman tu
+inercia— y **estallan al primer contacto**: piso, pared o cuerpo. El fusible existe
+solo como respaldo para la que sale volando y no toca nada. Apuntando hacia arriba
+va casi a plomo; en el aire, apuntando abajo, cae para el que viene atrás.
+
 **Tiempo lento (ECO)**: todo el mundo se mueve al 28% de su velocidad menos vos.
 Sirve para cruzar una lluvia de proyectiles o encadenar saltos imposibles. La
 barra se gasta mientras está activo y se recarga sola; las células la llenan de

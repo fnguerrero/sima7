@@ -16,16 +16,16 @@ G.granadas = (function () {
       corto: 'FRAG',
       color: '#ff6a3d',
       cuerpo: '#4a5236',
-      fusible: 1.15,
-      radio: 96
+      fusible: G.GRANADA_FUSIBLE_MAX,
+      radio: 108
     },
     humo: {
       nombre: 'humo',
       corto: 'HUMO',
       color: '#b9c6d0',
       cuerpo: '#5c6670',
-      fusible: 0.85,
-      radio: 74,
+      fusible: G.GRANADA_FUSIBLE_MAX,
+      radio: 78,
       duracion: 7
     },
     flash: {
@@ -33,8 +33,8 @@ G.granadas = (function () {
       corto: 'FLASH',
       color: '#fff3b0',
       cuerpo: '#8d95a3',
-      fusible: 0.9,
-      radio: 150,
+      fusible: G.GRANADA_FUSIBLE_MAX,
+      radio: 160,
       aturde: 3.4
     }
   };
@@ -103,33 +103,42 @@ G.crearGranada = function (tipo, x, y, vx, vy) {
     t: 0
   };
 
+  /* Explota apenas toca algo: piso, pared o cuerpo. El fusible queda solo como
+     respaldo, para la que sale volando y no llega a tocar nada. */
   e.actualizar = function (dt, mundo) {
     e.t += dt;
     e.fusible -= dt;
     e.rot += e.vrot * dt;
 
     e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
-    var caida = e.vy;
     var c = G.fisica.mover(e, mundo.mapa, dt);
-    // Rebote con pérdida: pica, rueda y se queda
-    if (c.suelo) {
-      e.vy = caida > 260 ? -caida * 0.42 : 0;
-      e.vx *= 0.55;
-      e.vrot *= 0.6;
-    }
-    if (c.pared) { e.vx = -e.vx * 0.45; e.vrot = -e.vrot; }
-    if (c.techo) e.vy = Math.abs(e.vy) * 0.4;
-    if (Math.abs(e.vx) < 6) e.vx = 0;
 
-    if (e.subtipo === 'fragmentacion' && Math.random() < 0.4) {
-      mundo.efectos.chispas(e.x + 4, e.y + 4, 1, '#ffb45c');
-    } else if (e.subtipo === 'flash' && e.fusible < 0.4) {
-      mundo.efectos.chispas(e.x + 4, e.y + 4, 2, '#fff3b0');
+    // Rastro: se ve para dónde va
+    if (Math.random() < 0.7) {
+      mundo.efectos.chispas(e.x + 4, e.y + 4, 1,
+                            e.subtipo === 'flash' ? '#fff3b0' : '#ffb45c');
+    }
+
+    if (c.suelo || c.pared || c.techo) {
+      e.quitar = true;
+      mundo.detonarGranada(e);
+      return;
+    }
+
+    // Contra un cuerpo: revienta en la cara
+    for (var i = 0; i < mundo.entidades.length; i++) {
+      var o = mundo.entidades[i];
+      if (!o.enemigo || !o.viva || o.quitar) continue;
+      if (!G.solapan({ x: e.x, y: e.y, w: e.w, h: e.h }, o)) continue;
+      e.quitar = true;
+      mundo.detonarGranada(e);
+      return;
     }
 
     if (e.fusible <= 0) {
       e.quitar = true;
       mundo.detonarGranada(e);
+      return;
     }
     if (e.y > mundo.alto + 60) e.quitar = true;
   };
@@ -140,10 +149,9 @@ G.crearGranada = function (tipo, x, y, vx, vy) {
     ctx.rotate(e.rot);
     G.granadas.dibujarIcono(ctx, e.subtipo, 0, 0, 1);
     ctx.restore();
-    // Titileo que se acelera al final del fusible
-    var k = 1 - G.clamp(e.fusible / G.granadas.obtener(e.subtipo).fusible, 0, 1);
-    if (Math.sin(e.t * (8 + k * 40)) > 0) {
-      G.luz(ctx, e.x + 4, e.y + 4, 12 + k * 10, G.granadas.obtener(e.subtipo).color, 0.5);
+    // Titila mientras vuela: se sigue con la vista aunque cruce la pantalla
+    if (Math.sin(e.t * 26) > 0) {
+      G.luz(ctx, e.x + 4, e.y + 4, 16, G.granadas.obtener(e.subtipo).color, 0.55);
     }
   };
 

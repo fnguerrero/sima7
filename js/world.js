@@ -377,12 +377,27 @@ G.crearMundo = function (numeroNivel, partida) {
     var cx = g.x + 4, cy = g.y + 4;
 
     if (g.subtipo === 'fragmentacion') {
-      mundo.efectos.destello(cx, cy, 130, '#ffb03a', 0.35);
-      mundo.efectos.chispas(cx, cy, 40, '#ffd9a0');
-      mundo.efectos.humo(cx, cy, 16, 'rgba(60,55,50,0.55)');
+      // --- La explosión, por capas ---
+      // 1. el fogonazo que ciega un instante
+      mundo.efectos.destello(cx, cy, 220, '#fff3d0', 0.14);
+      mundo.flash = Math.max(mundo.flash, 0.3);
+      // 2. la bola de fuego
+      mundo.efectos.bolaFuego(cx, cy, def.radio * 0.72, 7);
+      // 3. dos ondas expansivas: una rápida y fina, otra lenta y gruesa
+      mundo.efectos.onda(cx, cy, def.radio * 1.35, '#fff0c0', 0.32, 6);
+      mundo.efectos.onda(cx, cy, def.radio * 0.9, '#ff8a3a', 0.5, 11);
+      // 4. metralla, escombros y humo que queda
+      mundo.efectos.chispas(cx, cy, 90, '#ffd9a0');
+      mundo.efectos.chispas(cx, cy, 34, '#fff6e0');
       mundo.efectos.escombros(cx, cy, mundo.paleta.roca);
-      mundo.camara.sacudir(0.45, 9);
-      mundo.congelar(G.CONGELAR_REVENTAR);
+      mundo.efectos.escombros(cx, cy, mundo.paleta.metal);
+      mundo.efectos.humo(cx, cy, 30, 'rgba(50,45,42,0.6)');
+      mundo.efectos.humo(cx, cy - 14, 16, 'rgba(90,80,72,0.45)');
+      mundo.efectos.polvo(cx, cy + 10, 18, 'rgba(160,150,138,0.5)');
+      // 5. quemadura en el piso
+      mundo.efectos.mancha(cx, cy + 8, 16, 'rgba(20,14,10,0.55)', 0.7);
+      mundo.camara.sacudir(0.7, 16);
+      mundo.congelar(G.CONGELAR_EXPLOSION);
       G.audio.explosion();
 
       mundo.entidades.forEach(function (e) {
@@ -417,7 +432,7 @@ G.crearMundo = function (numeroNivel, partida) {
 
     } else if (g.subtipo === 'flash') {
       mundo.efectos.destello(cx, cy, 220, '#ffffff', 0.5);
-      mundo.flash = 1;
+      mundo.flash = 2.6;   // la flashbang sí tiene que cegar de verdad
       mundo.camara.sacudir(0.2, 4);
       G.audio.flashbang();
       mundo.entidades.forEach(function (e) {
@@ -480,12 +495,16 @@ G.crearMundo = function (numeroNivel, partida) {
   function explotar(col, fila) {
     var cx = col * T + T / 2, cy = fila * T + T / 2;
     ponerChar(col, fila, ' ');
-    mundo.efectos.destello(cx, cy, 70, '#ffb03a', 0.3);
+    mundo.efectos.destello(cx, cy, 150, '#ffe0a0', 0.12);
+    mundo.efectos.bolaFuego(cx, cy, 46, 5);
+    mundo.efectos.onda(cx, cy, 90, '#ffc074', 0.34, 6);
     mundo.efectos.escombros(cx, cy, '#8a5f28');
-    mundo.efectos.humo(cx, cy, 12, 'rgba(70,60,55,0.55)');
-    mundo.efectos.chispas(cx, cy, 26, '#ffd9a0');
-    mundo.camara.sacudir(0.35, 7);
-    G.audio.reventar();
+    mundo.efectos.humo(cx, cy, 20, 'rgba(70,60,55,0.55)');
+    mundo.efectos.chispas(cx, cy, 48, '#ffd9a0');
+    mundo.efectos.mancha(cx, cy + 6, 11, 'rgba(20,14,10,0.5)', 0.6);
+    mundo.camara.sacudir(0.5, 11);
+    mundo.congelar(G.CONGELAR_MUERTE);
+    G.audio.explosion();
 
     // Rompe los tiles rompibles alrededor
     for (var f = fila - 1; f <= fila + 1; f++) {
@@ -503,7 +522,7 @@ G.crearMundo = function (numeroNivel, partida) {
     repintarCelda(col, fila);
 
     // Y hace daño en área
-    var radio = 52;
+    var radio = 62;
     mundo.entidades.forEach(function (e) {
       if (!e.enemigo || !e.viva) return;
       var d = Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
@@ -635,7 +654,7 @@ G.crearMundo = function (numeroNivel, partida) {
   mundo.actualizar = function (dt) {
     mundo.t += dt;
     if (mundo.flashDano > 0) mundo.flashDano = Math.max(0, mundo.flashDano - dt * 2.2);
-    if (mundo.flash > 0) mundo.flash = Math.max(0, mundo.flash - dt * 1.1);
+    if (mundo.flash > 0) mundo.flash = Math.max(0, mundo.flash - dt * 2.8);
 
     // Hit stop: el mundo entero queda quieto unos milisegundos, salvo las
     // partículas, que son las que hacen que el instante se lea

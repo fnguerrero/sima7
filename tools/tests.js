@@ -585,7 +585,7 @@
   test('el sistema de partículas tiene tope', function () {
     var ef = G.crearEfectos(400, 300, 2);
     for (var i = 0; i < 200; i++) ef.reventar(40, 40, 18, 26, 'sangre');
-    afirmar(ef.particulas.length <= 700, 'se pasó del tope: ' + ef.particulas.length);
+    afirmar(ef.particulas.length <= 900, 'se pasó del tope: ' + ef.particulas.length);
     return ef.particulas.length + ' partículas';
   });
 
@@ -880,6 +880,69 @@
     j.granadas = 0;
     j.enfriaGranada = 0;
     afirmar(!j.lanzarGranada(m), 'lanzó una que no tenía');
+  });
+
+  test('la granada llega lejos', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.inmune = 1e9;
+    j.dir = 1;
+    var x0 = j.x;
+    j.lanzarGranada(m);
+    var g = m.entidades.filter(function (e) { return e.esGranada; })[0];
+    var pasos = 0;
+    while (!g.quitar && pasos < 600) { m.congelado = 0; m.actualizar(1 / 120); pasos++; }
+    var tiles = (g.x - x0) / G.TILE;
+    afirmar(tiles >= 8, 'solo llegó ' + tiles.toFixed(1) + ' tiles');
+    return tiles.toFixed(1) + ' tiles de alcance';
+  });
+
+  test('explota al tocar el piso, no por fusible', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.inmune = 1e9;
+    j.lanzarGranada(m);
+    var g = m.entidades.filter(function (e) { return e.esGranada; })[0];
+    var pasos = 0;
+    while (!g.quitar && pasos < 600) { m.congelado = 0; m.actualizar(1 / 120); pasos++; }
+    afirmar(g.quitar, 'nunca explotó');
+    var segundos = pasos / 120;
+    afirmar(segundos < G.GRANADA_FUSIBLE_MAX * 0.7,
+            'tardó ' + segundos.toFixed(2) + 's: se le acabó el fusible en vez de impactar');
+    return 'explotó a los ' + segundos.toFixed(2) + 's';
+  });
+
+  test('explota al tocar a un enemigo en el aire', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.inmune = 1e9;
+    var e = G.entidades.crear('jetpack', Math.floor(j.x / G.TILE) + 5, 7);
+    e.activa = true;
+    m.entidades.push(e);
+    var g = G.crearGranada('fragmentacion', e.x - 30, e.y + 4, 400, 0);
+    m.entidades.push(g);
+    for (var i = 0; i < 40 && !g.quitar; i++) { m.congelado = 0; m.actualizar(1 / 120); }
+    afirmar(g.quitar, 'atravesó al enemigo sin estallar');
+    afirmar(!e.viva, 'el enemigo sobrevivió al impacto directo');
+  });
+
+  test('la explosión tira onda expansiva y bola de fuego', function () {
+    var m = mundoDePrueba(1);
+    m.jugador.inmune = 1e9;
+    m.detonarGranada({ x: 300, y: 200, subtipo: 'fragmentacion' });
+    var p = m.efectos.particulas;
+    afirmar(p.filter(function (x) { return x.tipo === 'onda'; }).length >= 2, 'faltan las ondas');
+    afirmar(p.filter(function (x) { return x.tipo === 'fuego'; }).length >= 5, 'falta el fuego');
+    afirmar(m.camara.fuerza >= 10, 'la sacudida quedó floja');
+  });
+
+  test('los efectos importantes sobreviven al desborde de partículas', function () {
+    var ef = G.crearEfectos(600, 400, 2);
+    for (var i = 0; i < 60; i++) ef.reventar(40, 40, 18, 26, 'sangre');
+    ef.onda(100, 100, 90, '#fff', 0.4, 5);
+    for (var k = 0; k < 60; k++) ef.reventar(40, 40, 18, 26, 'sangre');
+    afirmar(ef.particulas.filter(function (p) { return p.tipo === 'onda'; }).length === 1,
+            'la onda se perdió cuando se llenó el buffer');
   });
 
   test('la de fragmentación mata a los que están cerca', function () {

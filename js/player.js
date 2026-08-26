@@ -471,11 +471,21 @@ G.crearJugador = function (col, fila) {
     j.enfriaGranada = G.ENFRIA_GRANADA;
 
     var arriba = j.apuntaY < 0;
-    var vx = arriba ? j.dir * 90 : j.dir * G.GRANADA_VEL;
-    var vy = arriba ? G.GRANADA_ARCO * 1.5 : G.GRANADA_ARCO;
+    var abajo = j.apuntaY > 0 && !j.enSuelo;
+    var vx, vy;
+    if (arriba) {
+      vx = j.dir * 140;
+      vy = G.GRANADA_ARCO * 1.7;         // casi a plomo
+    } else if (abajo) {
+      vx = j.dir * 120;
+      vy = 260;                          // hacia abajo, para el que viene atrás
+    } else {
+      vx = j.dir * G.GRANADA_VEL;
+      vy = G.GRANADA_ARCO;
+    }
     var g = G.crearGranada(j.tipoGranada,
                            j.x + j.w / 2 + j.dir * 8, j.y + 8,
-                           vx + j.vx * 0.4, vy);
+                           vx + j.vx * 0.6, vy);
     mundo.entidades.push(g);
     G.audio.lanzarGranada();
     mundo.efectos.chispas(j.x + j.w / 2, j.y + 8, 3, '#c8d2dc');

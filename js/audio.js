@@ -178,9 +178,16 @@ G.audio = (function () {
       golpe(0.22, 2600, 180, 0.16);
     },
     lanzarGranada: function () { tono(320, 180, 0.08, 'triangle', 0.06); golpe(0.07, 1800, 500, 0.06); },
+    /* Explosión en cuatro capas, que es como suena una de verdad: el latigazo
+       seco del frente de onda, el cuerpo grave, el sub que se siente más que se
+       escucha, y la cola de escombros cayendo. */
     explosion: function () {
-      golpe(0.75, 1800, 40, 0.30);
-      tono(120, 30, 0.6, 'sawtooth', 0.14);
+      golpe(0.06, 9000, 4000, 0.34, 'highpass');   // el crack inicial
+      golpe(0.9, 2200, 45, 0.34);                  // el cuerpo
+      tono(90, 26, 0.85, 'sine', 0.22);            // el sub
+      tono(200, 40, 0.4, 'sawtooth', 0.13);
+      golpe(1.1, 900, 200, 0.12, 'bandpass', 0.14); // la cola
+      golpe(0.5, 400, 120, 0.09, 'lowpass', 0.45);  // escombros cayendo
     },
     flashbang: function () {
       golpe(0.5, 9000, 3000, 0.26, 'highpass');

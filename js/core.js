@@ -53,9 +53,10 @@ G.CARGA_MIN = 0.42;       // seg manteniendo el gatillo para que salga cargada
 G.CARGA_DANO = 6;
 
 G.GRANADAS_INICIALES = 3;
-G.GRANADA_VEL = 330;      // impulso del lanzamiento
-G.GRANADA_ARCO = -260;    // componente vertical: sale en arco, no de plano
-G.ENFRIA_GRANADA = 0.55;
+G.GRANADA_VEL = 620;      // impulso del lanzamiento: llega lejos de verdad
+G.GRANADA_ARCO = -450;    // componente vertical: arco alto, para que llegue lejos
+G.GRANADA_FUSIBLE_MAX = 3;// respaldo, por si nunca toca nada
+G.ENFRIA_GRANADA = 0.45;
 
 G.ECO_MAX = 100;          // energía del tiempo lento
 G.ECO_COSTO = 17;         // por segundo activo: unos 6 segundos desde lleno
@@ -78,6 +79,7 @@ G.COMBO_MAX_MULT = 5;
    milisegundos: el mundo se detiene, la pantalla no. */
 G.CONGELAR_MUERTE = 0.055;
 G.CONGELAR_APLASTE = 0.13;
+G.CONGELAR_EXPLOSION = 0.17;
 G.VEL_APLASTE = 150;      // caer más rápido que esto, encima de alguien, lo revienta
 G.REBOTE_APLASTE = 0.78;  // del impulso de salto
 G.CONGELAR_REVENTAR = 0.09;
