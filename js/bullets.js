@@ -89,6 +89,32 @@ G.crearBalas = function (mundo) {
 
     limpiar: function () { lista.length = 0; },
 
+    /* Un disparo tuyo puede reventar una bala enemiga en el aire. Se chequea
+       aparte del resto porque son pocas y el costo es despreciable. */
+    cruzarFuego: function () {
+      for (var i = 0; i < lista.length; i++) {
+        var a = lista[i];
+        if (!a.deJugador || a.quitar) continue;
+        var ra = a.rect();
+        for (var k = 0; k < lista.length; k++) {
+          var b = lista[k];
+          if (b.deJugador || b.quitar) continue;
+          if (!G.solapan(ra, b.rect())) continue;
+
+          var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          mundo.efectos.chispas(mx, my, 12, '#fff0c0');
+          mundo.efectos.destello(mx, my, 26, '#ffd9a0', 0.12);
+          G.audio.chispazo();
+          b.quitar = true;
+          // Un disparo cargado se lleva puesta la bala y sigue de largo
+          if (!a.atraviesa) { a.quitar = true; break; }
+        }
+      }
+      for (var f = lista.length - 1; f >= 0; f--) {
+        if (lista[f].quitar) lista.splice(f, 1);
+      }
+    },
+
     actualizar: function (dt) {
       var j = mundo.jugador;
 
@@ -156,6 +182,8 @@ G.crearBalas = function (mundo) {
       for (var f = lista.length - 1; f >= 0; f--) {
         if (lista[f].quitar) lista.splice(f, 1);
       }
+
+      this.cruzarFuego();
     },
 
     dibujar: function (ctx) {

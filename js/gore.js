@@ -12,9 +12,10 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   var gore = nivelGore == null ? 2 : nivelGore;
 
   var lienzo = document.createElement('canvas');
-  lienzo.width = Math.max(1, anchoMundo);
-  lienzo.height = Math.max(1, altoMundo);
+  lienzo.width = Math.max(1, anchoMundo) * G.RENDER;
+  lienzo.height = Math.max(1, altoMundo) * G.RENDER;
   var dctx = lienzo.getContext('2d');
+  dctx.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
 
   var sis = {
     particulas: [],
@@ -23,7 +24,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     tFade: 0
   };
 
-  var MAX_PARTICULAS = 420;
+  var MAX_PARTICULAS = 700;
 
   function agregar(p) {
     if (sis.particulas.length >= MAX_PARTICULAS) sis.particulas.shift();
@@ -33,8 +34,8 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   /* Escala de cantidad según el nivel de gore. */
   function cuantas(n) {
     if (gore === 0) return Math.max(1, Math.round(n * 0.3));
-    if (gore === 1) return Math.round(n * 0.55);
-    return n;
+    if (gore === 1) return Math.round(n * 0.6);
+    return Math.round(n * 1.6);
   }
 
   function colorSangre(clase) {
@@ -51,7 +52,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
 
   /* Salpicadura direccional: el uso más común, cuando una bala pega en carne. */
   sis.salpicar = function (x, y, dirX, dirY, fuerza, clase) {
-    var n = cuantas(6 + Math.round(fuerza * 4));
+    var n = cuantas(9 + Math.round(fuerza * 7));
     for (var i = 0; i < n; i++) {
       var ang = Math.atan2(dirY, dirX) + (Math.random() - 0.5) * 1.5;
       var vel = 40 + Math.random() * 150 * (0.5 + fuerza * 0.5);
@@ -89,7 +90,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     }
 
     var esMaquina = clase === 'icor';
-    var n = gore === 2 ? 16 : 6;
+    var n = gore === 2 ? 26 : 9;
     for (var i = 0; i < n; i++) {
       var parte = esMaquina
         ? { clase: 'chatarra', color: '#7c8794', borde: '#b6c2cf', tam: 3 }
@@ -117,7 +118,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
 
     // Estallido de gotas finas en todas las direcciones
     if (!esMaquina) {
-      for (var k = 0; k < cuantas(gore === 2 ? 26 : 10); k++) {
+      for (var k = 0; k < cuantas(gore === 2 ? 34 : 12); k++) {
         var ang = Math.random() * Math.PI * 2;
         var vel = 90 + Math.random() * 320;
         agregar({
@@ -261,7 +262,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   sis.charco = function (x, y, tam, clase) {
     if (gore < 2) { sis.mancha(x, y, tam * 0.5, colorSangre(clase), 0.5); return; }
     var c = colorSangre(clase);
-    for (var i = 0; i < 7; i++) {
+    for (var i = 0; i < 14; i++) {
       sis.mancha(x + (Math.random() - 0.5) * tam * 2.2,
                  y + (Math.random() - 0.5) * tam * 0.7,
                  2 + Math.random() * tam * 0.6, c, 0.55 + Math.random() * 0.35);
@@ -334,7 +335,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
         sis.tFade = 0;
         dctx.globalCompositeOperation = 'destination-out';
         dctx.fillStyle = 'rgba(0,0,0,0.07)';
-        dctx.fillRect(0, 0, lienzo.width, lienzo.height);
+        dctx.fillRect(0, 0, anchoMundo, altoMundo);
         dctx.globalCompositeOperation = 'source-over';
       }
     }
@@ -353,7 +354,7 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   /* Las manchas van debajo de todo lo demás del mundo. */
   sis.dibujarManchas = function (ctx) {
     if (gore === 0) return;
-    ctx.drawImage(lienzo, 0, 0);
+    ctx.drawImage(lienzo, 0, 0, lienzo.width, lienzo.height, 0, 0, anchoMundo, altoMundo);
   };
 
   sis.dibujar = function (ctx) {

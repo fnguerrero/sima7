@@ -248,6 +248,8 @@ G.pantallas = (function () {
         ['Shift', 'correr'],
         ['W  S', 'apuntar arriba o abajo'],
         ['ENTER', 'disparar · mantener = disparo cargado'],
+        ['Ñ', 'tirar granada'],
+        ['O', 'cambiar de granada'],
         ['K', 'TIEMPO LENTO — gasta la barra ECO'],
         ['L', 'ULTRA VELOCIDAD — gasta la barra VEL']
       ] : [
@@ -256,6 +258,8 @@ G.pantallas = (function () {
         ['Shift', 'correr'],
         ['↑ ↓', 'apuntar arriba o abajo'],
         ['Z  ·  Ctrl', 'disparar · mantener = disparo cargado'],
+        ['F', 'tirar granada'],
+        ['E', 'cambiar de granada'],
         ['X', 'TIEMPO LENTO — gasta la barra ECO'],
         ['C', 'ULTRA VELOCIDAD — gasta la barra VEL']
       ];
@@ -267,12 +271,12 @@ G.pantallas = (function () {
       ]);
 
       filas.forEach(function (f, i) {
-        var y = 58 + i * 20;
+        var y = 52 + i * 17;
         G.texto(ctx, f[0], W / 2 - 16, y, { size: 11, align: 'right', color: '#ffcf5a' });
         G.texto(ctx, f[1], W / 2 + 16, y, { size: 11, align: 'left', color: '#c3ced8' });
       });
 
-      G.texto(ctx, 'El esquema se cambia desde el menú. Caerse a un pozo cuesta vida, no la partida.',
+      G.texto(ctx, 'Caerle encima a alguien lo revienta. Caerse a un pozo cuesta vida, no la partida.',
               W / 2, H - 40, { size: 9, align: 'center', color: '#8c99a5' });
       G.texto(ctx, 'Enter o Esc para volver', W / 2, H - 22,
               { size: 9, align: 'center', color: '#66727d' });

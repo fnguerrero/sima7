@@ -3,7 +3,10 @@
    Cada nivel se declara con coordenadas explícitas en vez de con 14 strings de
    150 caracteres (imposible de alinear a mano sin errores):
      suelo: tramos [x0, x1, fila] macizos desde esa fila hasta abajo
-     techo: tramos [x0, x1, fila] macizos desde arriba hasta esa fila
+     techo: tramos [x0, x1, fila] macizos desde arriba hasta esa fila. Los niveles
+            no lo usan: con el doble salto se llega arriba de todo, y toparse
+            contra una tapa se sentía como quedar enganchado. Sin techo, el
+            salto sigue de largo, sale un instante de cuadro y vuelve.
      poner: [columna, fila, "cadena"] — pinta la cadena a partir de esa celda
    `construir` lo expande al tilemap que consume el resto del juego, y
    validator.js verifica después que se pueda llegar del spawn a la salida.
@@ -14,7 +17,7 @@
    Gente:  1 saqueador · 2 guardia · 3 jetpack · 4 escopetero · 5 francotirador
            6 pesado · 9 lo del fondo
    Ítems:  o esquirla · h botiquín · a adrenalina · e célula de eco
-           g escopeta · r ametralladora · v vida extra
+           g escopeta · r ametralladora · n granadas · v vida extra
    Móviles: - plataforma horizontal · | plataforma vertical · ~ plataforma que cae */
 G.niveles = (function () {
 
@@ -55,7 +58,6 @@ G.niveles = (function () {
     {
       nombre: 'Boca del pozo', capa: 'colonia', tiempo: 220, ancho: 130,
       suelo: [[0, 42, 11], [47, 86, 11], [91, 130, 11]],
-      techo: [[0, 130, 0]],
       poner: [
         [3, 10, 'P'],
         [9, 10, 'ooo'],
@@ -73,7 +75,8 @@ G.niveles = (function () {
         [66, 9, 'SSSS'],
         [67, 8, 'h'],
         [72, 10, 'K'],
-        [76, 10, '1'],
+        [75, 10, 'n'],
+        [79, 10, '1'],
         [80, 7, '===='],
         [81, 6, 'ooo'],
         [94, 10, '2'],
@@ -90,7 +93,6 @@ G.niveles = (function () {
     {
       nombre: 'Nivel de carga', capa: 'colonia', tiempo: 230, ancho: 145,
       suelo: [[0, 36, 11], [41, 78, 11], [83, 112, 11], [117, 145, 11]],
-      techo: [[0, 145, 0]],
       poner: [
         [3, 10, 'P'],
         [10, 9, 'BBB'],
@@ -106,6 +108,7 @@ G.niveles = (function () {
         [54, 8, 'BBBB'],
         [55, 7, 'oo'],
         [60, 10, 'K'],
+        [57, 10, 'n'],
         [63, 10, '1'], [66, 10, '1'],
         [70, 7, '===='],
         [71, 6, 'h'],
@@ -128,7 +131,6 @@ G.niveles = (function () {
     {
       nombre: 'Pozo de ventilación', capa: 'colonia', tiempo: 240, ancho: 155,
       suelo: [[0, 30, 11], [36, 66, 11], [72, 100, 11], [106, 155, 11]],
-      techo: [[0, 155, 0]],
       poner: [
         [3, 10, 'P'],
         [9, 10, 'ooo'],
@@ -146,6 +148,7 @@ G.niveles = (function () {
         [55, 7, '====='],
         [56, 6, 'e'],
         [61, 10, 'K'],
+        [64, 10, 'n'],
         [68, 9, '-'],
         [74, 10, 'oo'],
         [78, 9, 'BBBB'],
@@ -171,7 +174,6 @@ G.niveles = (function () {
     {
       nombre: 'Galería 4', capa: 'infectado', tiempo: 240, ancho: 155,
       suelo: [[0, 34, 11], [40, 72, 11], [78, 108, 11], [114, 155, 11]],
-      techo: [[0, 155, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'oo'],
@@ -187,6 +189,7 @@ G.niveles = (function () {
         [50, 10, '4'],
         [54, 8, 'BBBB'],
         [55, 7, 'h'],
+        [57, 10, 'n'],
         [60, 10, 'K'],
         [64, 10, 'WWWW'],
         [69, 7, '====='],
@@ -213,7 +216,6 @@ G.niveles = (function () {
     {
       nombre: 'El criadero', capa: 'infectado', tiempo: 250, ancho: 160,
       suelo: [[0, 26, 11], [32, 52, 11], [58, 78, 11], [84, 106, 11], [112, 160, 11]],
-      techo: [[0, 160, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'oo'],
@@ -228,6 +230,7 @@ G.niveles = (function () {
         [43, 6, 'ooo'],
         [47, 10, 'WW'],
         [50, 10, 'K'],
+        [46, 10, 'n'],
         [54, 8, '~'],
         [56, 7, '~'],
         [60, 10, '4'],
@@ -262,7 +265,6 @@ G.niveles = (function () {
       nombre: 'Sala de bombas', capa: 'infectado', tiempo: 255, ancho: 165,
       suelo: [[0, 30, 11], [30, 37, 12], [37, 74, 11], [74, 81, 12], [81, 120, 11],
               [120, 127, 12], [127, 165, 11]],
-      techo: [[0, 165, 0]],
       poner: [
         [3, 10, 'P'],
         [9, 10, 'ooo'],
@@ -279,6 +281,7 @@ G.niveles = (function () {
         [53, 8, 'BBBB'],
         [54, 7, 'g'],
         [60, 10, 'K'],
+        [57, 10, 'n'],
         [63, 10, '2'],
         [67, 9, 'SSSS'],
         [68, 8, 'ooo'],
@@ -309,7 +312,6 @@ G.niveles = (function () {
     {
       nombre: 'La grieta', capa: 'ruinas', tiempo: 255, ancho: 165,
       suelo: [[0, 28, 11], [34, 58, 11], [64, 86, 11], [92, 118, 11], [124, 165, 11]],
-      techo: [[0, 165, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'oo'],
@@ -326,6 +328,7 @@ G.niveles = (function () {
         [47, 6, 'e'],
         [52, 10, '5'],
         [56, 10, 'K'],
+        [53, 10, 'n'],
         [60, 8, '|'],
         [66, 10, '3'],
         [70, 9, 'SSSS'],
@@ -359,7 +362,6 @@ G.niveles = (function () {
       nombre: 'Cámara sellada', capa: 'ruinas', tiempo: 265, ancho: 170,
       suelo: [[0, 24, 11], [30, 46, 11], [52, 68, 11], [74, 92, 11], [98, 116, 11],
               [122, 140, 11], [146, 170, 11]],
-      techo: [[0, 170, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'oo'],
@@ -384,6 +386,7 @@ G.niveles = (function () {
         [85, 7, '====='],
         [86, 6, 'e'],
         [90, 10, 'K'],
+        [87, 10, 'n'],
         [94, 8, '|'],
         [100, 10, '5'],
         [104, 9, 'ooo'],
@@ -410,7 +413,6 @@ G.niveles = (function () {
       nombre: 'Descenso final', capa: 'ruinas', tiempo: 275, ancho: 175,
       suelo: [[0, 26, 11], [32, 50, 11], [56, 72, 11], [78, 98, 11], [104, 122, 11],
               [128, 148, 11], [154, 175, 11]],
-      techo: [[0, 175, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'ooo'],
@@ -436,6 +438,7 @@ G.niveles = (function () {
         [89, 9, 'BBBB'],
         [90, 8, 'e'],
         [95, 10, 'K'],
+        [92, 10, 'n'],
         [100, 8, '|'],
         [106, 10, '2'],
         [110, 9, 'ooo'],
@@ -461,7 +464,6 @@ G.niveles = (function () {
     {
       nombre: 'El núcleo', capa: 'nucleo', tiempo: 290, ancho: 165,
       suelo: [[0, 28, 11], [34, 56, 11], [62, 84, 11], [90, 108, 11], [114, 165, 11]],
-      techo: [[0, 165, 0]],
       poner: [
         [3, 10, 'P'],
         [8, 10, 'ooo'],
@@ -491,6 +493,7 @@ G.niveles = (function () {
         // --- Arena ---
         [116, 10, 'K'],
         [119, 10, 'h'],
+        [113, 10, 'n'],
         [123, 10, 'r'],
         [126, 7, '===='],
         [138, 7, '===='],
@@ -510,7 +513,6 @@ G.niveles = (function () {
   var arenaDef = {
     nombre: 'La arena', capa: 'nucleo', tiempo: 9999, ancho: 52, horda: true,
     suelo: [[0, 52, 11]],
-    techo: [[0, 52, 0]],
     poner: [
       [25, 10, 'P'],
       // Parapetos bajos para cubrirse
@@ -570,7 +572,9 @@ G.niveles = (function () {
       numero: n,
       enemigos: lista,
       // Cada tres oleadas cae algo para levantar
-      premio: n % 3 === 0 ? (n % 6 === 0 ? 'botiquin' : (n % 9 === 0 ? 'ametralladora' : 'escopeta')) : null
+      premio: n % 2 === 0
+        ? (n % 6 === 0 ? 'botiquin' : (n % 8 === 0 ? 'ametralladora' : (n % 4 === 0 ? 'escopeta' : 'granadas')))
+        : null
     };
   }
 

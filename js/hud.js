@@ -140,6 +140,17 @@ G.hud = (function () {
         });
       }
 
+      // --- Granadas ---
+      var gdef = G.granadas.obtener(j.tipoGranada);
+      var gx = 146, gy = G.VIEW_H - 26;
+      ctx.fillStyle = 'rgba(6,10,14,0.55)';
+      ctx.fillRect(gx - 6, gy - 4, 104, 26);
+      G.granadas.dibujarIcono(ctx, j.tipoGranada, gx + 4, gy + 8, 1.2);
+      G.texto(ctx, gdef.corto, gx + 16, gy - 1, { size: 9, color: gdef.color });
+      G.texto(ctx, 'x' + j.granadas, gx + 16, gy + 10, {
+        size: 9, color: j.granadas ? '#c8d2dc' : '#ff6b6b'
+      });
+
       // --- Punto de control tomado ---
       if (mundo.control) {
         G.texto(ctx, 'CONTROL ACTIVO', W - 10, G.VIEW_H - 14,

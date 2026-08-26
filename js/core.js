@@ -11,6 +11,11 @@ G.ROWS = 14;              // 14 filas * 24px = 336px, la altura exacta del viewp
 G.COLS_VISIBLE = 25;      // 25 columnas * 24px = 600px
 G.ESCALA = 1.5;           // referencia: todo se agrandó 1.5x respecto de los 16px
 
+/* El mundo se piensa en 600x336, pero se dibuja al doble de resolución y se
+   muestra escalado. Así las curvas y las diagonales salen suaves en vez de
+   escalonadas, sin tocar una sola coordenada de la lógica del juego. */
+G.RENDER = 2;
+
 /* ---------------- Física ----------------
    Unidades: px/seg y px/seg². Todo escalado al tile de 24px. */
 G.GRAVEDAD = 2400;
@@ -47,14 +52,19 @@ G.BALA_DANO = 2;          // de un tiro alcanza para cualquier humano
 G.CARGA_MIN = 0.42;       // seg manteniendo el gatillo para que salga cargada
 G.CARGA_DANO = 6;
 
+G.GRANADAS_INICIALES = 3;
+G.GRANADA_VEL = 330;      // impulso del lanzamiento
+G.GRANADA_ARCO = -260;    // componente vertical: sale en arco, no de plano
+G.ENFRIA_GRANADA = 0.55;
+
 G.ECO_MAX = 100;          // energía del tiempo lento
-G.ECO_COSTO = 34;         // por segundo activo
-G.ECO_REGEN = 7.5;        // por segundo
+G.ECO_COSTO = 17;         // por segundo activo: unos 6 segundos desde lleno
+G.ECO_REGEN = 10;         // por segundo
 G.ESCALA_LENTA = 0.28;    // qué tan lento va el mundo con el poder activo
 
 G.ADRENALINA_MAX = 100;   // barra de la ultra velocidad
-G.ADRENALINA_GASTO = 30;  // por segundo activa
-G.ADRENALINA_REGEN = 4.2; // por segundo, sola
+G.ADRENALINA_GASTO = 15;  // por segundo activa: unos 6,5 segundos desde llena
+G.ADRENALINA_REGEN = 6;   // por segundo, sola
 G.ADRENALINA_MINIMA = 25; // hace falta este mínimo para poder activarla
 
 /* ---------------- Combo ----------------
@@ -67,6 +77,9 @@ G.COMBO_MAX_MULT = 5;
    El congelamiento al matar es lo que hace que un disparo se sienta. Son pocos
    milisegundos: el mundo se detiene, la pantalla no. */
 G.CONGELAR_MUERTE = 0.055;
+G.CONGELAR_APLASTE = 0.13;
+G.VEL_APLASTE = 150;      // caer más rápido que esto, encima de alguien, lo revienta
+G.REBOTE_APLASTE = 0.78;  // del impulso de salto
 G.CONGELAR_REVENTAR = 0.09;
 G.LENTA_ULTIMA_BAJA = 0.9;   // seg de cámara lenta al limpiar una zona
 G.MAX_CADAVERES = 22;

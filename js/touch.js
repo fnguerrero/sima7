@@ -66,6 +66,8 @@ G.tactil = (function () {
     boton(der, 'p-lento chico', 'ECO', ['lento']);
     boton(der, 'p-turbo chico', 'VEL', ['turbo']);
     boton(der, 'p-correr chico', 'RUN', ['correr']);
+    boton(der, 'p-granada chico', 'GRAN', ['granada']);
+    boton(der, 'p-cambiar chico', 'TIPO', ['cambiarGranada']);
 
     // --- Arriba: confirmar y pausa ---
     var sup = document.createElement('div');

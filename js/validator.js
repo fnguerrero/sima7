@@ -87,7 +87,7 @@ G.validador = (function () {
   }
 
   var CHARS_ENEMIGO = ['1', '2', '3', '4', '5', '6', '9'];
-  var CHARS_ITEM = ['o', 'h', 'a', 'e', 'g', 'r', 'v'];
+  var CHARS_ITEM = ['o', 'h', 'a', 'e', 'g', 'r', 'v', 'n'];
   var CHARS_VOLADOR = ['3'];   // los únicos que no necesitan piso debajo
 
   function validarNivel(nivel) {

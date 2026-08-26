@@ -33,6 +33,7 @@ G.crearMundo = function (numeroNivel, partida) {
     tEstado: 0,
     t: 0,
     flashDano: 0,
+    flash: 0,
     esquirlasNivel: 0,
     jefe: null,
     congelado: 0,        // hit stop: el mundo se detiene, la pantalla no
@@ -80,6 +81,14 @@ G.crearMundo = function (numeroNivel, partida) {
   }
 
   mundo.jugador = G.crearJugador(spawnCol, spawnFila);
+
+  // Lo que traías del sector anterior
+  if (partida.arma && partida.arma !== 'pistola' && partida.municion > 0) {
+    mundo.jugador.arma = partida.arma;
+    mundo.jugador.municion = partida.municion;
+  }
+  if (partida.granadas != null) mundo.jugador.granadas = partida.granadas;
+  if (partida.tipoGranada) mundo.jugador.tipoGranada = partida.tipoGranada;
   mundo.camara = G.crearCamara(mundo.ancho, mundo.alto);
   mundo.camara.seguir(mundo.jugador, 0, true);
   mundo.efectos = G.crearEfectos(mundo.ancho, mundo.alto, G.save.nivelGore());
@@ -104,9 +113,11 @@ G.crearMundo = function (numeroNivel, partida) {
   /* ---- Caché del tilemap ---- */
 
   var cache = document.createElement('canvas');
-  cache.width = mundo.ancho;
-  cache.height = mundo.alto;
+  cache.width = mundo.ancho * G.RENDER;
+  cache.height = mundo.alto * G.RENDER;
   var cctx = cache.getContext('2d');
+  // Todo lo que se pinte acá usa coordenadas del mundo; la escala la pone el CTM
+  cctx.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
 
   function pintarCelda(c, f) {
     var ch = charEn(c, f);
@@ -150,6 +161,7 @@ G.crearMundo = function (numeroNivel, partida) {
     var mult = mundo.multiplicador();
     var total = Math.round(puntos * mult);
     partida.puntaje += total;
+    mundo.jugador.decir(partida.combo >= 3 ? 'racha' : 'baja');
     mundo.efectos.texto(x, y, '+' + total, mult > 1 ? '#ffb03a' : '#ffe27a');
     if (partida.combo >= 2) {
       mundo.efectos.texto(x, y - 16, 'x' + partida.combo, '#ff8a3a');
@@ -263,7 +275,7 @@ G.crearMundo = function (numeroNivel, partida) {
     e.vida -= dano;
     e.flash = 0.14;
     // Un tiro se escucha: los de al lado dejan de patrullar
-    mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 260, e);
+    mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 170, e);
     e.empuje = (vx > 0 ? 1 : -1) * (dano >= G.CARGA_DANO ? 220 : 70);
 
     var cx = e.x + e.w / 2, cy = e.y + e.h / 2;
@@ -303,6 +315,7 @@ G.crearMundo = function (numeroNivel, partida) {
         mundo.camara.sacudir(0.2, 5);
         mundo.congelar(G.CONGELAR_REVENTAR);
         G.audio.reventar();
+        G.audio.grito();
       } else {
         // Muerte normal: igual salen vísceras, y el cuerpo sale despedido
         mundo.efectos.reventar(e.x, e.y, e.w, e.h, 'sangre');
@@ -315,11 +328,13 @@ G.crearMundo = function (numeroNivel, partida) {
         mundo.camara.sacudir(0.12, 3);
         mundo.congelar(G.CONGELAR_MUERTE);
         G.audio.carne();
+        if (Math.random() < 0.75) G.audio.grito();
       }
       // Si era el último de la zona, un respiro en cámara lenta
       if (!quedanEnemigosCerca()) {
         mundo.lenta = Math.max(mundo.lenta, G.LENTA_ULTIMA_BAJA);
         G.audio.zonaLimpia();
+        mundo.jugador.decir('sector');
       }
     } else {
       mundo.efectos.reventar(e.x, e.y, e.w, e.h, e.sangre);
@@ -336,6 +351,96 @@ G.crearMundo = function (numeroNivel, partida) {
       mundo.efectos.destello(cx, cy, 180, '#ff7a3c', 0.7);
       completarNivel();
     }
+  };
+
+  /* Aplastar: la sangre sale para los costados, no para arriba, y el grito es
+     lo que hace que se sienta distinto de un balazo. */
+  mundo.aplastarEnemigo = function (e) {
+    if (!e.viva) return;
+    var cx = e.x + e.w / 2, base = e.y + e.h;
+    mundo.efectos.salpicar(cx, base - 4, -1, -0.15, 2, e.sangre);
+    mundo.efectos.salpicar(cx, base - 4, 1, -0.15, 2, e.sangre);
+    mundo.efectos.charco(cx, base, 15, e.sangre);
+    mundo.efectos.polvo(cx, base, 8);
+    mundo.congelar(G.CONGELAR_APLASTE);
+    mundo.camara.sacudir(0.26, 6);
+    if (e.humano) G.audio.grito();
+    mundo.efectos.texto(cx, e.y - 8, 'APLASTADO', '#ff6b6b');
+    mundo.danarEnemigo(e, 99, 0, 400);
+    mundo.jugador.decir('aplaste', true);
+  };
+
+  /* ---- Granadas ---- */
+
+  mundo.detonarGranada = function (g) {
+    var def = G.granadas.obtener(g.subtipo);
+    var cx = g.x + 4, cy = g.y + 4;
+
+    if (g.subtipo === 'fragmentacion') {
+      mundo.efectos.destello(cx, cy, 130, '#ffb03a', 0.35);
+      mundo.efectos.chispas(cx, cy, 40, '#ffd9a0');
+      mundo.efectos.humo(cx, cy, 16, 'rgba(60,55,50,0.55)');
+      mundo.efectos.escombros(cx, cy, mundo.paleta.roca);
+      mundo.camara.sacudir(0.45, 9);
+      mundo.congelar(G.CONGELAR_REVENTAR);
+      G.audio.explosion();
+
+      mundo.entidades.forEach(function (e) {
+        if (!e.enemigo || !e.viva) return;
+        var d = Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
+        if (d > def.radio) return;
+        mundo.danarEnemigo(e, 99, e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
+      });
+      // Rompe lo que sea rompible alrededor
+      var col0 = Math.floor((cx - def.radio) / T), col1 = Math.floor((cx + def.radio) / T);
+      var fil0 = Math.floor((cy - def.radio) / T), fil1 = Math.floor((cy + def.radio) / T);
+      for (var f = fil0; f <= fil1; f++) {
+        for (var c = col0; c <= col1; c++) {
+          if (!G.tiles.esRompible(charEn(c, f))) continue;
+          if (Math.hypot(c * T + T / 2 - cx, f * T + T / 2 - cy) > def.radio) continue;
+          if (G.tiles.obtener(charEn(c, f)).explota) { explotar(c, f); continue; }
+          ponerChar(c, f, ' ');
+          delete danioTile[c + ',' + f];
+          repintarCelda(c, f);
+        }
+      }
+      // Y a vos también, si te quedaste cerca
+      var j = mundo.jugador;
+      if (!j.muerto && Math.hypot(j.x + j.w / 2 - cx, j.y + j.h / 2 - cy) < def.radio * 0.75) {
+        j.recibirDano(2, j.x + j.w / 2 < cx ? -1 : 1, mundo);
+      }
+
+    } else if (g.subtipo === 'humo') {
+      mundo.entidades.push(G.crearNube(cx, cy, def.radio, def.duracion));
+      mundo.efectos.humo(cx, cy, 22, 'rgba(180,190,200,0.5)');
+      G.audio.humo();
+
+    } else if (g.subtipo === 'flash') {
+      mundo.efectos.destello(cx, cy, 220, '#ffffff', 0.5);
+      mundo.flash = 1;
+      mundo.camara.sacudir(0.2, 4);
+      G.audio.flashbang();
+      mundo.entidades.forEach(function (e) {
+        if (!e.enemigo || !e.viva || e.esJefe) return;
+        var d = Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
+        if (d > def.radio) return;
+        e.aturdido = def.aturde * (1 - d / def.radio * 0.4);
+        e.alerta = 0;
+        e.reaccion = null;
+      });
+    }
+  };
+
+  /* ¿Está el jugador tapado por una nube de humo? Los enemigos lo consultan
+     antes de decir que te ven. */
+  mundo.jugadorOculto = function () {
+    var j = mundo.jugador;
+    var px = j.x + j.w / 2, py = j.y + j.h / 2;
+    for (var i = 0; i < mundo.entidades.length; i++) {
+      var e = mundo.entidades[i];
+      if (e.esNube && !e.quitar && e.contiene(px, py)) return true;
+    }
+    return false;
   };
 
   /* ---- Impacto de una bala en el mapa ---- */
@@ -447,6 +552,15 @@ G.crearMundo = function (numeroNivel, partida) {
       }
 
       if (e.enemigo && e.viva) {
+        // Caerle encima lo revienta. Antes el contacto solo hacía daño y el
+        // jugador quedaba rebotando arriba del enemigo, enganchado.
+        var pies = j.y + j.h;
+        if (!e.esJefe && j.vy > G.VEL_APLASTE && pies < e.y + e.h * 0.6) {
+          mundo.aplastarEnemigo(e);
+          j.vy = -G.IMPULSO_SALTO * G.REBOTE_APLASTE;
+          j.saltosUsados = 1;          // queda el doble salto disponible
+          continue;
+        }
         var dirGolpe = (j.x + j.w / 2) < (e.x + e.w / 2) ? -1 : 1;
         j.recibirDano(e.dano || 1, dirGolpe, mundo);
         // Los enemigos orgánicos se llevan un raspón al chocar
@@ -506,6 +620,11 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.jugador.turboActivo = false;
     partida.puntaje += Math.floor(mundo.tiempo) * 8;
     partida.puntaje += mundo.jugador.vida * 100;
+    // El arma con la que terminaste te la llevás al siguiente sector
+    partida.arma = mundo.jugador.arma;
+    partida.municion = mundo.jugador.municion;
+    partida.granadas = mundo.jugador.granadas;
+    partida.tipoGranada = mundo.jugador.tipoGranada;
     G.audio.volverAmbiente();
     G.audio.meta();
   }
@@ -516,6 +635,7 @@ G.crearMundo = function (numeroNivel, partida) {
   mundo.actualizar = function (dt) {
     mundo.t += dt;
     if (mundo.flashDano > 0) mundo.flashDano = Math.max(0, mundo.flashDano - dt * 2.2);
+    if (mundo.flash > 0) mundo.flash = Math.max(0, mundo.flash - dt * 1.1);
 
     // Hit stop: el mundo entero queda quieto unos milisegundos, salvo las
     // partículas, que son las que hacen que el instante se lea
@@ -576,6 +696,16 @@ G.crearMundo = function (numeroNivel, partida) {
       if (e.quitar) continue;
       e.t += dtM;
       if (e.flash > 0) e.flash -= dt;   // el destello de impacto no se ralentiza
+
+      // Aturdido por un flash: no razona, solo se sostiene en pie
+      if (e.aturdido > 0) {
+        e.aturdido -= dt;
+        e.vx = G.aprox(e.vx, 0, 400 * dtM);
+        e.vy = Math.min(e.vy + G.GRAVEDAD * dtM, G.VEL_MAX_CAIDA);
+        if (e.enemigo && !e.esJefe) G.fisica.mover(e, mundo.mapa, dtM);
+        continue;
+      }
+
       if (!e.activa) {
         if (e.x < camX + G.VIEW_W + 80 && e.x + e.w > camX - 80) e.activa = true;
         else if (!e.plataforma) continue;
@@ -685,9 +815,10 @@ G.crearMundo = function (numeroNivel, partida) {
   /* ---- Capa de luz ---- */
 
   var luzCanvas = document.createElement('canvas');
-  luzCanvas.width = G.VIEW_W;
-  luzCanvas.height = G.VIEW_H;
+  luzCanvas.width = G.VIEW_W * G.RENDER;
+  luzCanvas.height = G.VIEW_H * G.RENDER;
   var lctx = luzCanvas.getContext('2d');
+  lctx.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
 
   /* Cuanto más oscuro el ambiente, más se nota la linterna. Cada capa tiene el
      suyo: la superficie conserva algo de luz, el núcleo brilla por su cuenta. */
@@ -746,7 +877,7 @@ G.crearMundo = function (numeroNivel, partida) {
 
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    ctx.drawImage(luzCanvas, 0, 0);
+    ctx.drawImage(luzCanvas, 0, 0, luzCanvas.width, luzCanvas.height, 0, 0, G.VIEW_W, G.VIEW_H);
     ctx.restore();
   }
 
@@ -766,7 +897,9 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.efectos.dibujarManchas(ctx);
 
     // Tilemap estático, recortado a lo visible
-    ctx.drawImage(cache, off.x, off.y, G.VIEW_W, G.VIEW_H,
+    ctx.drawImage(cache,
+                  off.x * G.RENDER, off.y * G.RENDER,
+                  G.VIEW_W * G.RENDER, G.VIEW_H * G.RENDER,
                   off.x, off.y, G.VIEW_W, G.VIEW_H);
 
     // Tiles animados
@@ -798,6 +931,7 @@ G.crearMundo = function (numeroNivel, partida) {
 
     mundo.balas.dibujar(ctx);
     mundo.efectos.dibujar(ctx);
+    if (!mundo.jugador.muerto) mundo.jugador.dibujarBocadillo(ctx);
 
     ctx.restore();
 
@@ -835,6 +969,12 @@ G.crearMundo = function (numeroNivel, partida) {
 
     if (mundo.flashDano > 0) {
       ctx.fillStyle = 'rgba(190,20,25,' + (mundo.flashDano * 0.4).toFixed(3) + ')';
+      ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
+    }
+
+    // El fogonazo del flashbang, que también te ciega a vos
+    if (mundo.flash > 0) {
+      ctx.fillStyle = 'rgba(255,255,245,' + (mundo.flash * 0.85).toFixed(3) + ')';
       ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
     }
 

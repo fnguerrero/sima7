@@ -56,7 +56,17 @@ G.crearJugador = function (col, fila) {
     tSeguro: 0,
 
     bajas: 0,
-    disparos: 0
+    disparos: 0,
+
+    // Granadas
+    granadas: G.GRANADAS_INICIALES,
+    tipoGranada: 'fragmentacion',
+    enfriaGranada: 0,
+
+    // Bocadillos
+    frase: null,
+    tFrase: 0,
+    enfriaFrase: 0
   };
 
   j.rect = function () { return { x: j.x, y: j.y, w: j.w, h: j.h }; };
@@ -102,6 +112,7 @@ G.crearJugador = function (col, fila) {
 
     if (j.vida <= 0) { j.morir(mundo); return true; }
     G.audio.dano();
+    j.decir(j.vida === 1 ? 'critico' : 'dano');
     return false;
   };
 
@@ -130,6 +141,7 @@ G.crearJugador = function (col, fila) {
 
   j.tomarArma = function (tipo) {
     var def = G.armas.obtener(tipo);
+    if (!def.infinita) j.decir('arma');
     j.arma = tipo;
     j.municion = def.infinita ? 0 : def.municion;
     j.carga = 0;
@@ -141,6 +153,7 @@ G.crearJugador = function (col, fila) {
     j.municion = 0;
     if (mundo) mundo.efectos.texto(j.x + 9, j.y - 8, 'SIN MUNICIÓN', '#8d95a3');
     G.audio.sinMunicion();
+    j.decir('sinMunicion');
   }
 
   function tirar(mundo, cargada) {
@@ -216,6 +229,9 @@ G.crearJugador = function (col, fila) {
     }
 
     if (j.inmune > 0) j.inmune -= dt;
+    if (j.tFrase > 0) j.tFrase -= dt;
+    if (j.enfriaGranada > 0) j.enfriaGranada -= dt;
+    if (j.enfriaFrase > 0) j.enfriaFrase -= dt;
     if (j.cooldown > 0) j.cooldown -= dt;
     if (j.fogonazo > 0) j.fogonazo -= dt;
     if (j.retroceso > 0) j.retroceso = Math.max(0, j.retroceso - dt * 26);
@@ -290,6 +306,20 @@ G.crearJugador = function (col, fila) {
       }
       j.carga = 0;
       j.cargaLista = false;
+    }
+
+    // ---- Granadas ----
+    if (G.input.apretado('cambiarGranada')) {
+      j.tipoGranada = G.granadas.siguiente(j.tipoGranada);
+      mundo.efectos.texto(j.x + 9, j.y - 10,
+                          G.granadas.obtener(j.tipoGranada).corto,
+                          G.granadas.obtener(j.tipoGranada).color);
+      G.audio.recoger();
+      G.input.consumir('cambiarGranada');
+    }
+    if (G.input.apretado('granada')) {
+      j.lanzarGranada(mundo);
+      G.input.consumir('granada');
     }
 
     // ---- Arrastre de la plataforma que lo sostiene ----
@@ -370,7 +400,10 @@ G.crearJugador = function (col, fila) {
       mundo.camara.seguir(j, 0, true);
       mundo.efectos.destello(j.x + j.w / 2, j.y + j.h / 2, 60, G.color.visor, 0.25);
       mundo.efectos.polvo(j.x + j.w / 2, j.y + j.h, 8);
-      if (porCaida) mundo.efectos.texto(j.x + 9, j.y - 10, '¡AL BORDE!', '#ffcf5a');
+      if (porCaida) {
+        mundo.efectos.texto(j.x + 9, j.y - 10, '¡AL BORDE!', '#ffcf5a');
+        j.decir('pozo');
+      }
     }
   }
   j.volverAlSeguro = volverAlSeguro;
@@ -385,6 +418,7 @@ G.crearJugador = function (col, fila) {
       } else if (j.eco > 8) {
         j.lentoActivo = true;
         G.audio.lento();
+        j.decir('eco');
         G.audio.callarAmbiente();
         mundo.efectos.destello(j.x + j.w / 2, j.y + j.h / 2, 90, G.color.visor, 0.4);
       }
@@ -410,6 +444,7 @@ G.crearJugador = function (col, fila) {
       } else if (j.adrenalina >= G.ADRENALINA_MINIMA) {
         j.turboActivo = true;
         G.audio.turbo();
+        j.decir('turbo');
         mundo.efectos.destello(j.x + j.w / 2, j.y + j.h / 2, 80, '#ffb03a', 0.35);
       }
       G.input.consumir('turbo');
@@ -426,6 +461,31 @@ G.crearJugador = function (col, fila) {
     }
   }
 
+  /* Sale en arco desde la mano, con la inercia de lo que venías corriendo. */
+  j.lanzarGranada = function (mundo) {
+    if (j.granadas <= 0 || j.enfriaGranada > 0) {
+      if (j.granadas <= 0) G.audio.sinMunicion();
+      return false;
+    }
+    j.granadas--;
+    j.enfriaGranada = G.ENFRIA_GRANADA;
+
+    var arriba = j.apuntaY < 0;
+    var vx = arriba ? j.dir * 90 : j.dir * G.GRANADA_VEL;
+    var vy = arriba ? G.GRANADA_ARCO * 1.5 : G.GRANADA_ARCO;
+    var g = G.crearGranada(j.tipoGranada,
+                           j.x + j.w / 2 + j.dir * 8, j.y + 8,
+                           vx + j.vx * 0.4, vy);
+    mundo.entidades.push(g);
+    G.audio.lanzarGranada();
+    mundo.efectos.chispas(j.x + j.w / 2, j.y + 8, 3, '#c8d2dc');
+    return true;
+  };
+
+  j.sumarGranadas = function (n) {
+    j.granadas = Math.min(9, j.granadas + n);
+  };
+
   j.cargarAdrenalina = function (n) {
     j.adrenalina = G.clamp(j.adrenalina + n, 0, G.ADRENALINA_MAX);
   };
@@ -433,138 +493,339 @@ G.crearJugador = function (col, fila) {
     j.eco = G.clamp(j.eco + n, 0, G.ECO_MAX);
   };
 
+  /* ---------------- Bocadillos ----------------
+     Lo que va diciendo. El enfriamiento es lo que evita que hable encima de sí
+     mismo cuando se arma un tiroteo. */
+  j.decir = function (evento, forzar) {
+    if (j.muerto) return false;
+    if (!forzar && j.enfriaFrase > 0) return false;
+    var f = forzar ? G.dialogos.seguro(evento) : G.dialogos.para(evento);
+    if (!f) return false;
+    j.frase = f;
+    j.tFrase = 2.1;
+    j.enfriaFrase = 3.4;
+    return true;
+  };
+
   /* ---------------- Dibujo ----------------
-     18x30 de colisión. El sprite se sale un poco de esa caja a propósito
-     (mochila, arma, antena): se ve mejor y no cambia la física. */
+     18x30 de colisión. El sprite se sale de esa caja a propósito (pelo, cinta,
+     arma): se ve mejor y no cambia la física.
+
+     Está dibujado con curvas y no con rectángulos: el canvas se renderiza al
+     doble de resolución (G.RENDER), así que un hombro redondeado se ve
+     redondeado y no escalonado. */
+
+  function elipse(ctx, x, y, rx, ry, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function capsula(ctx, x1, y1, x2, y2, grosor, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = grosor;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
   j.dibujar = function (ctx) {
+    // Estela del turbo
     for (var i = 0; i < j.estela.length; i++) {
       var s = j.estela[i];
-      ctx.globalAlpha = (s.vida / 0.2) * 0.28;
+      ctx.globalAlpha = (s.vida / 0.2) * 0.26;
       ctx.fillStyle = '#ffb03a';
-      ctx.fillRect(Math.round(s.x) + 3, Math.round(s.y) + 3, j.w - 6, j.h - 4);
+      ctx.beginPath();
+      ctx.ellipse(s.x + j.w / 2, s.y + j.h / 2, j.w * 0.4, j.h * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
 
     if (j.inmune > 0 && Math.floor(j.t * 24) % 2 === 0) return;
 
-    var x = Math.round(j.x) - Math.round(j.retroceso * j.dir);
-    var y = Math.round(j.y);
+    var x = j.x - j.retroceso * j.dir;
+    var y = j.y;
     var d = j.dir;
     var enAire = !j.enSuelo;
     var enMov = Math.abs(j.vx) > 16;
     var paso = Math.floor(j.t * (Math.abs(j.vx) > G.VEL_CAMINAR ? 18 : 11)) % 4;
-    var bob = enMov && !enAire ? [0, 1, 0, 0][paso] : 0;
+    var bob = enMov && !enAire ? [0, 0.8, 0, 0][paso] : 0;
+    var zancada = enMov ? [0, 4, 0, -4][paso] : 0;
 
-    var traje = G.color.traje;
-    var trajeClaro = G.color.trajeClaro;
-    if (j.turboActivo) { traje = '#4a3520'; trajeClaro = '#9a6a2a'; }
-    if (j.lentoActivo) { traje = '#1e3a44'; trajeClaro = '#2f6f80'; }
+    // Paleta: piel curtida, pantalón militar, cinta roja
+    var piel = '#c98d5c';
+    var pielSombra = '#a06c42';
+    var pielLuz = '#e0a877';
+    var pantalon = '#4a5236';
+    var pantalonLuz = '#616b47';
+    var cinta = '#c2131d';
+    if (j.turboActivo) { cinta = '#ffb03a'; }
+    if (j.lentoActivo) { piel = '#9fb0b8'; pielSombra = '#7b8c96'; pielLuz = '#c2d2d8'; }
 
     ctx.save();
-    ctx.translate(x, y + bob);
+    ctx.translate(x + j.w / 2, y + bob);   // origen: centro horizontal, cabeza arriba
+    ctx.scale(d, 1);                       // todo el sprite se dibuja mirando a la derecha
 
-    // --- Piernas ---
-    ctx.fillStyle = '#1b2130';
+    // ---- Piernas ----
+    var caderaY = 19;
     if (enAire) {
-      ctx.fillRect(2, 19, 6, 9);
-      ctx.fillRect(10, 17, 6, 9);
-    } else if (enMov) {
-      var off = [0, 4, 0, -4][paso];
-      ctx.fillRect(2 + off, 21, 6, 9);
-      ctx.fillRect(10 - off, 21, 6, 9);
+      capsula(ctx, -3, caderaY, -5, 27, 6, pantalon);
+      capsula(ctx, 3, caderaY, 5, 24, 6, pantalon);
+      capsula(ctx, -5, 27, -6, 29.5, 5.5, '#241d12');
+      capsula(ctx, 5, 24, 7, 26, 5.5, '#241d12');
     } else {
-      ctx.fillRect(2, 21, 6, 9);
-      ctx.fillRect(10, 21, 6, 9);
+      capsula(ctx, -3, caderaY, -3 + zancada * 0.5, 28, 6.5, pantalon);
+      capsula(ctx, 3, caderaY, 3 - zancada * 0.5, 28, 6.5, pantalon);
+      // Botas
+      capsula(ctx, -3 + zancada * 0.5, 28, -3 + zancada * 0.5 + 2, 29, 6, '#241d12');
+      capsula(ctx, 3 - zancada * 0.5, 28, 3 - zancada * 0.5 + 2, 29, 6, '#241d12');
     }
-    // Rodilleras
-    ctx.fillStyle = '#2c3648';
-    ctx.fillRect(enAire ? 2 : (enMov ? 2 + [0, 4, 0, -4][paso] : 2), 23, 6, 2);
-    ctx.fillRect(enAire ? 10 : (enMov ? 10 - [0, 4, 0, -4][paso] : 10), 23, 6, 2);
-    // Botas
-    ctx.fillStyle = '#0f131c';
-    ctx.fillRect(enAire ? 1 : (enMov ? 1 + [0, 4, 0, -4][paso] : 1), 27, 8, 3);
-    ctx.fillRect(enAire ? 10 : (enMov ? 10 - [0, 4, 0, -4][paso] : 10), 27, 8, 3);
+    // Luz en el muslo de adelante
+    capsula(ctx, 3, caderaY, 3 - zancada * 0.5, 24, 2, pantalonLuz);
 
-    // --- Mochila / tanque ---
-    ctx.fillStyle = '#39424f';
-    ctx.fillRect(d > 0 ? -3 : 15, 8, 6, 12);
-    ctx.fillStyle = '#5b6a7c';
-    ctx.fillRect(d > 0 ? -3 : 15, 8, 6, 3);
-    ctx.fillStyle = '#222a35';
-    ctx.fillRect(d > 0 ? -3 : 15, 14, 6, 1);
-    // Luz de estado
-    ctx.fillStyle = j.turboActivo ? '#ffb03a' : (j.lentoActivo ? G.color.visor : '#4be08a');
-    ctx.fillRect(d > 0 ? -2 : 16, 16, 3, 3);
+    // ---- Torso: pecho ancho, cintura angosta ----
+    ctx.fillStyle = piel;
+    ctx.beginPath();
+    ctx.moveTo(-6.5, 11);                      // hombro izquierdo
+    ctx.quadraticCurveTo(-7.5, 15, -4.5, 19);  // costado
+    ctx.lineTo(4.5, 19);
+    ctx.quadraticCurveTo(7.5, 15, 6.5, 11);    // costado derecho
+    ctx.quadraticCurveTo(0, 8.5, -6.5, 11);    // pectorales
+    ctx.closePath();
+    ctx.fill();
 
-    // --- Torso ---
-    ctx.fillStyle = traje;
-    ctx.fillRect(2, 9, 14, 13);
-    ctx.fillStyle = trajeClaro;
-    ctx.fillRect(2, 9, 14, 3);
-    ctx.fillRect(d > 0 ? 2 : 14, 9, 2, 13);
-    // Arnés y cinturón
-    ctx.fillStyle = '#12161f';
-    ctx.fillRect(2, 19, 14, 3);
-    ctx.fillStyle = '#5a6478';
-    ctx.fillRect(6, 12, 3, 7);
-    ctx.fillStyle = '#8a94a4';
-    ctx.fillRect(6, 12, 3, 2);
-    // Bolsillos
-    ctx.fillStyle = '#2a3341';
-    ctx.fillRect(d > 0 ? 3 : 11, 15, 4, 4);
+    // Volumen del torso
+    ctx.fillStyle = pielLuz;
+    ctx.beginPath();
+    ctx.ellipse(2.5, 12.5, 3.4, 2.2, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = pielSombra;
+    ctx.beginPath();
+    ctx.ellipse(-4, 13.5, 2.6, 2, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Abdominales
+    ctx.strokeStyle = 'rgba(120,70,35,0.55)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(0, 13.5); ctx.lineTo(0, 18.5);
+    ctx.moveTo(-3, 15.6); ctx.lineTo(3, 15.6);
+    ctx.moveTo(-2.6, 17.6); ctx.lineTo(2.6, 17.6);
+    ctx.stroke();
 
-    // --- Casco ---
-    ctx.fillStyle = '#39424f';
-    ctx.fillRect(2, 0, 14, 9);
-    ctx.fillStyle = '#4d5867';
-    ctx.fillRect(2, 0, 14, 3);
-    ctx.fillStyle = '#2a3039';
-    ctx.fillRect(2, 8, 14, 1);
-    // Visor
-    ctx.fillStyle = '#0d1a20';
-    ctx.fillRect(d > 0 ? 7 : 2, 3, 9, 5);
-    ctx.fillStyle = G.color.visor;
-    ctx.fillRect(d > 0 ? 8 : 3, 4, 7, 3);
-    ctx.fillStyle = '#bff4ff';
-    ctx.fillRect(d > 0 ? 12 : 3, 4, 2, 3);
-    // Linterna y cámara del casco
-    ctx.fillStyle = '#ffe9a8';
-    ctx.fillRect(d > 0 ? 15 : 1, 1, 2, 3);
-    ctx.fillStyle = '#c2131d';
-    ctx.fillRect(d > 0 ? 3 : 14, 1, 2, 2);   // testigo de grabación
+    // ---- Cartuchera cruzada ----
+    ctx.strokeStyle = '#6b4a22';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(-6, 10.5);
+    ctx.quadraticCurveTo(-1, 14, 5, 19);
+    ctx.stroke();
+    ctx.fillStyle = '#d8a13c';
+    for (var b = 0; b < 5; b++) {
+      var bt = b / 4;
+      var bx = -6 + bt * 11, by = 10.5 + bt * 8.5 + Math.sin(bt * 3) * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 0.8, 1.5, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // --- Arma ---
-    G.armas.dibujarEnMano(ctx, j.arma, d, j.apuntaY, j.enSuelo);
+    // ---- Cinturón y cuchillo ----
+    ctx.fillStyle = '#2f2716';
+    ctx.fillRect(-5.2, 18.4, 10.4, 2.6);
+    ctx.fillStyle = '#8d7a3a';
+    ctx.fillRect(-1.2, 18.6, 2.4, 2.2);
+    ctx.fillStyle = '#3a3020';
+    ctx.beginPath();
+    ctx.moveTo(-6.2, 19.5); ctx.lineTo(-4.4, 19.5);
+    ctx.lineTo(-4.8, 25); ctx.lineTo(-6.2, 25);
+    ctx.closePath();
+    ctx.fill();
+
+    // ---- Brazo de atrás ----
+    ctx.strokeStyle = pielSombra;
+    ctx.lineWidth = 4.2;
+    ctx.beginPath();
+    ctx.moveTo(-4.5, 11.5);
+    ctx.quadraticCurveTo(-8, 14, -6, 17.5);
+    ctx.stroke();
+
+    // ---- Cabeza ----
+    var cabezaY = 5.4;
+    // Pelo largo, atrás
+    ctx.fillStyle = '#2b1d12';
+    ctx.beginPath();
+    ctx.moveTo(-1, 1.5);
+    ctx.quadraticCurveTo(-7, 3, -5.5, 11);
+    ctx.quadraticCurveTo(-3, 9, -2, 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cuello
+    capsula(ctx, 0, 8.5, 0.5, 10.5, 4, pielSombra);
+
+    // Cara
+    elipse(ctx, 0.4, cabezaY, 4.3, 4.7, piel);
+    // Mandíbula marcada
+    ctx.fillStyle = pielSombra;
+    ctx.beginPath();
+    ctx.ellipse(-0.6, cabezaY + 2.4, 3.4, 2.4, 0, 0, Math.PI);
+    ctx.fill();
+    // Pómulo iluminado
+    elipse(ctx, 2, cabezaY - 0.5, 1.6, 1.9, pielLuz);
+
+    // Ojo y ceja
+    ctx.fillStyle = '#1a1008';
+    ctx.beginPath();
+    ctx.ellipse(2.6, cabezaY - 0.2, 0.85, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2b1d12';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(1.4, cabezaY - 1.8);
+    ctx.quadraticCurveTo(3, cabezaY - 2.2, 4.2, cabezaY - 1.4);
+    ctx.stroke();
+
+    // Pelo sobre la frente
+    ctx.fillStyle = '#2b1d12';
+    ctx.beginPath();
+    ctx.moveTo(-4, cabezaY - 2.4);
+    ctx.quadraticCurveTo(0, cabezaY - 5.6, 4.3, cabezaY - 2.6);
+    ctx.quadraticCurveTo(1, cabezaY - 3.6, -4, cabezaY - 1);
+    ctx.closePath();
+    ctx.fill();
+
+    // ---- La cinta ----
+    ctx.fillStyle = cinta;
+    ctx.beginPath();
+    ctx.moveTo(-4.6, cabezaY - 2.2);
+    ctx.quadraticCurveTo(0, cabezaY - 4.6, 4.6, cabezaY - 2.4);
+    ctx.lineTo(4.4, cabezaY - 0.9);
+    ctx.quadraticCurveTo(0, cabezaY - 3, -4.6, cabezaY - 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(-4.6, cabezaY - 2.2);
+    ctx.quadraticCurveTo(0, cabezaY - 4.6, 4.6, cabezaY - 2.4);
+    ctx.lineTo(4.5, cabezaY - 1.9);
+    ctx.quadraticCurveTo(0, cabezaY - 4, -4.6, cabezaY - 1.7);
+    ctx.closePath();
+    ctx.fill();
+
+    // Puntas de la cinta al viento: reaccionan a la velocidad
+    var viento = G.clamp(Math.abs(j.vx) / G.VEL_CORRER, 0, 1.6);
+    var flamear = Math.sin(j.t * 11) * (1 + viento);
+    ctx.strokeStyle = cinta;
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(-4.4, cabezaY - 1.4);
+    ctx.quadraticCurveTo(-8 - viento * 3, cabezaY - 2 + flamear,
+                         -11 - viento * 6, cabezaY + 1 + flamear * 1.6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-4.4, cabezaY - 0.4);
+    ctx.quadraticCurveTo(-8 - viento * 2, cabezaY + 1.5 - flamear,
+                         -10 - viento * 5, cabezaY + 3.5 - flamear * 1.3);
+    ctx.stroke();
+
+    // ---- Brazo de adelante y arma ----
+    ctx.save();
+    if (j.apuntaY < 0) ctx.rotate(-0.95);
+    else if (j.apuntaY > 0 && enAire) ctx.rotate(1.05);
+    ctx.strokeStyle = piel;
+    ctx.lineWidth = 4.4;
+    ctx.beginPath();
+    ctx.moveTo(3.5, 11.8);
+    ctx.quadraticCurveTo(7.5, 12.5, 9.5, 13.6);
+    ctx.stroke();
+    // Bíceps
+    elipse(ctx, 5.6, 11.9, 2.4, 2.1, pielLuz);
+    ctx.restore();
+
+    // El arma se dibuja con el sistema de armas, en su propio marco
+    ctx.save();
+    ctx.translate(-j.w / 2, 0);
+    G.armas.dibujarEnMano(ctx, j.arma, 1, j.apuntaY, j.enSuelo);
+    ctx.restore();
 
     ctx.restore();
 
-    // Fogonazo
+    // ---- Fogonazo ----
     if (j.fogonazo > 0) {
-      var b = j.boca();
+      var bo = j.boca();
       var dirT = j.direccionTiro();
       ctx.save();
       ctx.globalAlpha = G.clamp(j.fogonazo * 18, 0, 1);
-      ctx.fillStyle = '#fff2c0';
-      ctx.translate(b.x, b.y);
+      ctx.translate(bo.x, bo.y);
       ctx.rotate(Math.atan2(dirT.y, dirT.x));
-      ctx.fillRect(0, -3, 10, 6);
-      ctx.fillRect(8, -2, 5, 4);
+      var g = ctx.createRadialGradient(4, 0, 0, 4, 0, 12);
+      g.addColorStop(0, '#fff8dc');
+      g.addColorStop(0.5, 'rgba(255,190,90,0.85)');
+      g.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(5, 0, 11, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
-      G.luz(ctx, b.x, b.y, 34, '#ffd9a0', 0.5);
+      G.luz(ctx, bo.x, bo.y, 40, '#ffd9a0', 0.55);
     }
 
-    // Halo de carga
+    // ---- Halo de carga ----
     if (j.carga > 0.12 && j.armaDef().permiteCarga) {
       var bc = j.boca();
       var k = G.clamp(j.carga / G.CARGA_MIN, 0, 1);
       var col2 = j.cargaLista ? G.color.carga : G.color.plasma;
-      G.luz(ctx, bc.x, bc.y, 8 + k * 20, col2, 0.4 + 0.4 * k);
+      G.luz(ctx, bc.x, bc.y, 8 + k * 22, col2, 0.4 + 0.4 * k);
       if (j.cargaLista) {
         ctx.fillStyle = col2;
         var pu = 3 + Math.sin(j.t * 30) * 1.5;
-        ctx.fillRect(Math.round(bc.x - pu), Math.round(bc.y - pu), pu * 2, pu * 2);
+        ctx.beginPath();
+        ctx.arc(bc.x, bc.y, pu, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
+  };
+
+  /* El bocadillo va aparte para poder dibujarlo encima de todo lo demás. */
+  j.dibujarBocadillo = function (ctx) {
+    if (!j.frase || j.tFrase <= 0) return;
+    var aparece = G.clamp((2.1 - j.tFrase) * 8, 0, 1);
+    var alpha = G.clamp(j.tFrase * 2.5, 0, 1) * aparece;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '10px "Consolas", "Courier New", monospace';
+    var ancho = ctx.measureText(j.frase).width + 14;
+    var alto = 17;
+    var bx = j.x + j.w / 2 - ancho / 2;
+    var by = j.y - alto - 12 - aparece * 2;
+
+    // Globo redondeado con puntero
+    ctx.fillStyle = 'rgba(12,18,24,0.88)';
+    ctx.strokeStyle = 'rgba(190,215,230,0.5)';
+    ctx.lineWidth = 1;
+    var r = 6;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + ancho - r, by);
+    ctx.quadraticCurveTo(bx + ancho, by, bx + ancho, by + r);
+    ctx.lineTo(bx + ancho, by + alto - r);
+    ctx.quadraticCurveTo(bx + ancho, by + alto, bx + ancho - r, by + alto);
+    ctx.lineTo(bx + ancho / 2 + 4, by + alto);
+    ctx.lineTo(bx + ancho / 2, by + alto + 5);
+    ctx.lineTo(bx + ancho / 2 - 4, by + alto);
+    ctx.lineTo(bx + r, by + alto);
+    ctx.quadraticCurveTo(bx, by + alto, bx, by + alto - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    G.texto(ctx, j.frase, bx + ancho / 2, by + 4,
+            { size: 10, align: 'center', color: '#ffe9c2' });
+    ctx.restore();
   };
 
   return j;

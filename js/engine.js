@@ -35,7 +35,9 @@ G.motor = (function () {
   function nuevaFicha(nivel) {
     return {
       vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: nivel, control: null,
-      combo: 0, comboT: 0, mejorCombo: 0, horda: nivel === 0
+      combo: 0, comboT: 0, mejorCombo: 0, horda: nivel === 0,
+      arma: 'pistola', municion: 0,
+      granadas: G.GRANADAS_INICIALES, tipoGranada: 'fragmentacion'
     };
   }
 
@@ -53,6 +55,7 @@ G.motor = (function () {
     estado = G.JUGANDO;
     G.audio.ambiente(FRECUENCIA_AMBIENTE[mundo.capa] || 50);
     G.musica.tocar(mundo.capa, !!mundo.jefe || mundo.horda);
+    mundo.jugador.decir(mundo.jefe ? 'jefe' : 'inicio', true);
   }
 
   function reiniciarNivel() {
@@ -274,6 +277,9 @@ G.motor = (function () {
   }
 
   function dibujar() {
+    // Todo el juego se dibuja en unidades de 600x336; el canvas es el doble
+    ctx.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
+
     if (fallosNiveles && fallosNiveles.length) {
       G.pantallas.errorNiveles(ctx, fallosNiveles);
       return;
@@ -338,7 +344,10 @@ G.motor = (function () {
   function iniciar(elCanvas) {
     canvas = elCanvas;
     ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
 
     G.input.usarEsquema(G.save.esquema());
 

@@ -35,11 +35,10 @@ body::before {
 
 #pantalla {
   display: block;
-  /* Escala el canvas manteniendo la resolución interna de 600x336 */
+  /* El canvas es de 1200x672 y se muestra a la mitad o menos: el navegador lo
+     baja de escala con filtrado, que es justo lo que suaviza las curvas. */
   width: min(96vw, calc(88vh * 600 / 336));
   height: auto;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
 }
 
 #ayuda {
@@ -116,7 +115,7 @@ body.tactil #controles {
 #controles .der {
   right: max(12px, env(safe-area-inset-right));
   bottom: max(14px, env(safe-area-inset-bottom));
-  width: 196px;
+  width: 236px;
   height: 176px;
 }
 
@@ -165,6 +164,8 @@ body.tactil #controles {
 .p-lento   { right: 6px;  bottom: 92px; }
 .p-turbo   { right: 60px; bottom: 108px; }
 .p-correr  { right: 118px; bottom: 118px; }
+.p-granada { right: 172px; bottom: 30px; background: rgba(90, 60, 25, 0.45); }
+.p-cambiar { right: 172px; bottom: 86px; }
 
 /* Superiores */
 .p-ok    { position: relative; width: 52px; height: 40px; font-size: 12px; }

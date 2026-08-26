@@ -53,19 +53,19 @@ G.entidades = (function () {
 
     if (!lienzoFlash) {
       lienzoFlash = document.createElement('canvas');
-      lienzoFlash.width = 192;
-      lienzoFlash.height = 192;
+      lienzoFlash.width = 200 * G.RENDER;
+      lienzoFlash.height = 200 * G.RENDER;
       ctxFlash = lienzoFlash.getContext('2d');
     }
     var w = e.w + 12, h = e.h + 12;
-    if (w > lienzoFlash.width || h > lienzoFlash.height) return;
+    if (w * G.RENDER > lienzoFlash.width || h * G.RENDER > lienzoFlash.height) return;
 
     var ox = Math.round(e.x) - 6, oy = Math.round(e.y) - 6;
-    ctxFlash.setTransform(1, 0, 0, 1, 0, 0);
+    ctxFlash.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
     ctxFlash.clearRect(0, 0, w, h);
     ctxFlash.translate(-ox, -oy);
     fn(ctxFlash);
-    ctxFlash.setTransform(1, 0, 0, 1, 0, 0);
+    ctxFlash.setTransform(G.RENDER, 0, 0, G.RENDER, 0, 0);
     ctxFlash.globalCompositeOperation = 'source-atop';
     ctxFlash.fillStyle = '#ffffff';
     ctxFlash.fillRect(0, 0, w, h);
@@ -73,8 +73,23 @@ G.entidades = (function () {
 
     ctx.save();
     ctx.globalAlpha = G.clamp(e.flash * 6, 0, 0.9);
-    ctx.drawImage(lienzoFlash, 0, 0, w, h, ox, oy, w, h);
+    ctx.drawImage(lienzoFlash, 0, 0, w * G.RENDER, h * G.RENDER, ox, oy, w, h);
     ctx.restore();
+  }
+
+  /* Marca de aturdido: las estrellitas de toda la vida, girando. */
+  function marcaAturdido(ctx, e) {
+    if (!(e.aturdido > 0)) return;
+    var cx = e.x + e.w / 2, cy = e.y - 6;
+    for (var i = 0; i < 3; i++) {
+      var a = e.t * 5 + i * 2.1;
+      var px = cx + Math.cos(a) * 9;
+      var py = cy + Math.sin(a) * 3.5;
+      ctx.fillStyle = i % 2 ? '#fff3b0' : '#ffcf5a';
+      ctx.beginPath();
+      ctx.arc(px, py, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   /* Solo el jefe aguanta lo suficiente como para necesitar barra. */
@@ -91,6 +106,8 @@ G.entidades = (function () {
   function veAlJugador(e, mundo, rango) {
     var j = mundo.jugador;
     if (j.muerto) return false;
+    if (e.aturdido > 0) return false;
+    if (mundo.jugadorOculto && mundo.jugadorOculto()) return false;   // humo
     var dx = (j.x + j.w / 2) - (e.x + e.w / 2);
     var dy = (j.y + j.h / 2) - (e.y + e.h / 2);
     return Math.abs(dx) < rango && Math.abs(dy) < rango * 0.6;
@@ -105,6 +122,26 @@ G.entidades = (function () {
       e.x += e.empuje * dt;
       e.empuje = G.aprox(e.empuje, 0, 900 * dt);
     }
+  }
+
+  /* Los enemigos no corrigen el rumbo cada frame: lo revisan cada tanto y solo
+     con los pies en el piso. Es lo que evita que parezcan adivinar dónde vas a
+     caer y que te queden pegados abajo mientras saltás. */
+  function rumbo(e, mundo, dt, periodo) {
+    e.tRumbo = (e.tRumbo || 0) - dt;
+    if (e.tRumbo > 0) return e.dir;
+    if (e.enSuelo === false) return e.dir;      // en el aire no se corrige
+    e.tRumbo = periodo || 0.55;
+    e.dir = haciaJugador(e, mundo);
+    return e.dir;
+  }
+
+  /* Tiempo de reacción: entre que te ven y que hacen algo pasa un rato. */
+  function reaccionando(e, dt, demora) {
+    if (e.alerta > 0 && e.reaccion == null) e.reaccion = demora || 0.45;
+    if (e.alerta <= 0) { e.reaccion = null; return false; }
+    if (e.reaccion > 0) { e.reaccion -= dt; return true; }
+    return false;
   }
 
   function distAlJugador(e, mundo) {
@@ -236,23 +273,30 @@ G.entidades = (function () {
   function saqueador(col, fila) {
     var e = baseEnemigo('saqueador', col, fila, 18, 26, 2);
     e.velPatrulla = 62;
-    e.velCarga = 200;
+    e.velCarga = 165;
     e.puntos = 120;
+    e.enSuelo = false;
+    e.tRumbo = 0;
 
     e.actualizar = function (dt, mundo) {
-      if (veAlJugador(e, mundo, 230)) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
-        e.alerta = 2.2;
-        e.dir = haciaJugador(e, mundo);
+      if (veAlJugador(e, mundo, 185)) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 150, e);
+        e.alerta = 1.6;
       } else if (e.alerta > 0) e.alerta -= dt;
 
-      e.vx = (e.alerta > 0 ? e.velCarga : e.velPatrulla) * e.dir;
+      var frenado = reaccionando(e, dt, 0.5);
+      if (e.alerta > 0 && !frenado) rumbo(e, mundo, dt, 0.7);
+      e.vx = (e.alerta > 0 && !frenado ? e.velCarga : e.velPatrulla) * e.dir;
       e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
-      if (c.pared) e.dir *= -1;
+      e.enSuelo = c.suelo;
+      if (c.pared) { e.dir *= -1; e.tRumbo = 0.9; }
       var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
-      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) {
+        e.dir *= -1;
+        e.tRumbo = 0.9;
+      }
       if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
       if (e.y > mundo.alto + 90) e.quitar = true;
     };
@@ -277,6 +321,7 @@ G.entidades = (function () {
         });
       });
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -298,17 +343,18 @@ G.entidades = (function () {
     e.DIST_IDEAL = 190;
 
     e.actualizar = function (dt, mundo) {
-      var ve = veAlJugador(e, mundo, 320);
+      var ve = veAlJugador(e, mundo, 235);
       if (ve) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 220, e);
-        e.alerta = 2.2;
-        e.dir = haciaJugador(e, mundo);
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 170, e);
+        e.alerta = 1.5;
       } else if (e.alerta > 0) {
         e.alerta -= dt;
-        if (e.avisado) e.dir = haciaJugador(e, mundo);
       }
 
-      if (e.alerta > 0) {
+      var frenado = reaccionando(e, dt, 0.5);
+
+      if (e.alerta > 0 && !frenado) {
+        rumbo(e, mundo, dt, 0.5);
         var dist = distAlJugador(e, mundo);
         esquivar(e, mundo, dt);
 
@@ -343,13 +389,13 @@ G.entidades = (function () {
         // Solo dispara cuando está asomado
         e.recarga -= dt;
         if (e.recarga <= 0 && e.asomado > 0 && ve) {
-          e.recarga = 0.85;
+          e.recarga = 1.15;
           e.retroceso = 0.12;
-          tirarleAlJugador(e, mundo, { despX: 12, vel: 340, desvio: (Math.random() - 0.5) * 0.1 });
+          tirarleAlJugador(e, mundo, { despX: 12, vel: 320, desvio: (Math.random() - 0.5) * 0.26 });
           G.audio.disparoEnemigo();
         }
       } else {
-        e.vx = 68 * e.dir;
+        e.vx = frenado ? G.aprox(e.vx, 0, 900 * dt) : 68 * e.dir;
         e.cobertura = null;
       }
 
@@ -401,6 +447,7 @@ G.entidades = (function () {
         ctx.fillRect(Math.round(e.x) + e.w / 2 - 1, Math.round(e.y) - 5, 3, 2);
       }
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -431,14 +478,14 @@ G.entidades = (function () {
         mundo.efectos.chispas(e.x + e.w / 2, e.y + e.h, 5, '#ffb45c');
       }
 
-      if (veAlJugador(e, mundo, 320)) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 220, e);
-        e.alerta = 1.5;
-        e.recarga -= dt;
+      if (veAlJugador(e, mundo, 250)) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 170, e);
+        e.alerta = 1.3;
+        if (!reaccionando(e, dt, 0.5)) e.recarga -= dt;
         if (e.recarga <= 0) {
-          e.recarga = 1.3;
+          e.recarga = 1.7;
           tirarleAlJugador(e, mundo, {
-            despX: 10, despY: e.h * 0.5, vel: 320, desvio: (Math.random() - 0.5) * 0.14
+            despX: 10, despY: e.h * 0.5, vel: 300, desvio: (Math.random() - 0.5) * 0.3
           });
           G.audio.disparoEnemigo();
         }
@@ -476,6 +523,7 @@ G.entidades = (function () {
         });
       });
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -488,13 +536,14 @@ G.entidades = (function () {
     e.puntos = 220;
 
     e.actualizar = function (dt, mundo) {
-      var cerca = veAlJugador(e, mundo, 190);
+      var cerca = veAlJugador(e, mundo, 165);
       if (cerca) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
-        e.alerta = 1.6;
-        e.dir = haciaJugador(e, mundo);
-      }
-      else if (e.alerta > 0) e.alerta -= dt;
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 160, e);
+        e.alerta = 1.4;
+      } else if (e.alerta > 0) e.alerta -= dt;
+
+      var frenado = reaccionando(e, dt, 0.55);
+      if (e.alerta > 0 && !frenado) rumbo(e, mundo, dt, 0.6);
 
       if (e.apuntando > 0) {
         e.apuntando -= dt;
@@ -502,7 +551,7 @@ G.entidades = (function () {
         if (e.apuntando <= 0) {
           for (var i = -2; i <= 2; i++) {
             tirarleAlJugador(e, mundo, {
-              despX: 13, vel: 300, desvio: i * 0.13, dano: 1,
+              despX: 13, vel: 290, desvio: i * 0.17 + (Math.random() - 0.5) * 0.08, dano: 1,
               w: 7, h: 4, color: '#ffb05a', duracion: 0.75
             });
           }
@@ -511,17 +560,18 @@ G.entidades = (function () {
           e.recarga = 1.7;
         }
       } else {
-        e.vx = e.alerta > 0 ? 88 * e.dir : 52 * e.dir;
+        e.vx = (e.alerta > 0 && !frenado) ? 78 * e.dir : 52 * e.dir;
         e.recarga -= dt;
-        if (e.recarga <= 0 && cerca) e.apuntando = 0.42;
+        if (e.recarga <= 0 && cerca && !frenado) e.apuntando = 0.55;
       }
 
       e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
-      if (c.pared) e.dir *= -1;
+      e.enSuelo = c.suelo;
+      if (c.pared) { e.dir *= -1; e.tRumbo = 0.9; }
       var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
-      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) { e.dir *= -1; e.tRumbo = 0.9; }
       if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
       if (e.y > mundo.alto + 90) e.quitar = true;
     };
@@ -549,6 +599,7 @@ G.entidades = (function () {
         }
       });
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -566,11 +617,11 @@ G.entidades = (function () {
       empujar(e, dt);
       G.fisica.mover(e, mundo.mapa, dt);
 
-      var ve = veAlJugador(e, mundo, 460);
+      var ve = veAlJugador(e, mundo, 370);
       if (ve) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 300, e);
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
         e.alerta = 1.4;
-        e.dir = haciaJugador(e, mundo);
+        rumbo(e, mundo, dt, 0.4);
       } else if (e.alerta > 0) e.alerta -= dt;
 
       // No sirve de nada a quemarropa: si lo apurás, retrocede y pierde la mira
@@ -587,7 +638,8 @@ G.entidades = (function () {
         e.cargando -= dt;
         if (e.cargando <= 0) {
           tirarleAlJugador(e, mundo, {
-            despX: 14, vel: 620, dano: 2, w: 16, h: 3,
+            despX: 14, vel: 560, dano: 2, w: 16, h: 3,
+            desvio: (Math.random() - 0.5) * 0.1,
             color: '#ff5a5a', duracion: 1.4
           });
           mundo.camara.sacudir(0.08, 2);
@@ -596,7 +648,7 @@ G.entidades = (function () {
         }
       } else {
         e.recarga -= dt;
-        if (e.recarga <= 0 && ve) e.cargando = 0.75;
+        if (e.recarga <= 0 && ve) e.cargando = 1.0;
       }
       if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
     };
@@ -633,6 +685,7 @@ G.entidades = (function () {
         ctx.restore();
       }
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -649,12 +702,14 @@ G.entidades = (function () {
     e.recarga = 1.0;
 
     e.actualizar = function (dt, mundo) {
-      var ve = veAlJugador(e, mundo, 340);
+      var ve = veAlJugador(e, mundo, 265);
       if (ve) {
-        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 300, e);
-        e.alerta = 2;
-        e.dir = haciaJugador(e, mundo);
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
+        e.alerta = 1.8;
       } else if (e.alerta > 0) e.alerta -= dt;
+
+      var frenado = reaccionando(e, dt, 0.7);
+      if (e.alerta > 0 && !frenado) rumbo(e, mundo, dt, 0.8);
 
       if (e.rafaga > 0) {
         e.vx = G.aprox(e.vx, 0, 900 * dt);
@@ -663,23 +718,24 @@ G.entidades = (function () {
           e.rafaga--;
           e.entreTiros = 0.1;
           tirarleAlJugador(e, mundo, {
-            despX: 16, vel: 380, desvio: (Math.random() - 0.5) * 0.22,
+            despX: 16, vel: 360, desvio: (Math.random() - 0.5) * 0.34,
             w: 11, h: 4, color: '#ffd06a'
           });
           G.audio.disparoEnemigo();
         }
       } else {
-        e.vx = e.alerta > 0 ? 42 * e.dir : 32 * e.dir;
+        e.vx = (e.alerta > 0 && !frenado) ? 42 * e.dir : 32 * e.dir;
         e.recarga -= dt;
-        if (e.recarga <= 0 && ve) { e.rafaga = 7; e.entreTiros = 0; e.recarga = 2.2; }
+        if (e.recarga <= 0 && ve && !frenado) { e.rafaga = 6; e.entreTiros = 0; e.recarga = 2.6; }
       }
 
       e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
-      if (c.pared) e.dir *= -1;
+      e.enSuelo = c.suelo;
+      if (c.pared) { e.dir *= -1; e.tRumbo = 1.1; }
       var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
-      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) { e.dir *= -1; e.tRumbo = 1.1; }
       if (G.fisica.tocaPeligro(e, mundo.mapa, 5)) mundo.danarEnemigo(e, 99, 0, 0);
       if (e.y > mundo.alto + 90) e.quitar = true;
     };
@@ -710,6 +766,7 @@ G.entidades = (function () {
         }
       });
       barraVida(ctx, e);
+      marcaAturdido(ctx, e);
     };
     return e;
   }
@@ -1026,6 +1083,31 @@ G.entidades = (function () {
     return e;
   }
 
+  function municionGranada(col, fila) {
+    var e = itemBase('granadas', col, fila, 20, 16);
+    e.alTocar = function (mundo) {
+      mundo.jugador.sumarGranadas(2);
+      mundo.sumarPuntos(120, e.x, e.y);
+      G.audio.recogerArma();
+      mundo.efectos.texto(e.x + 10, e.y - 6, '+2 GRANADAS', '#ff6a3d');
+      e.quitar = true;
+    };
+    e.dibujar = function (ctx) {
+      var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
+      G.luz(ctx, x + 10, y + 8, 22, '#ff6a3d', 0.28);
+      // Cajón de munición con dos granadas asomando
+      ctx.fillStyle = '#3f4a30';
+      ctx.fillRect(x, y + 5, 20, 11);
+      ctx.fillStyle = '#55643f';
+      ctx.fillRect(x, y + 5, 20, 3);
+      ctx.fillStyle = '#2b3320';
+      ctx.fillRect(x + 8, y + 8, 4, 8);
+      G.granadas.dibujarIcono(ctx, 'fragmentacion', x + 5, y + 4, 0.75);
+      G.granadas.dibujarIcono(ctx, 'flash', x + 15, y + 4, 0.75);
+    };
+    return e;
+  }
+
   function vida(col, fila) {
     var e = itemBase('vida', col, fila, 20, 20);
     e.alTocar = function (mundo) {
@@ -1272,6 +1354,7 @@ G.entidades = (function () {
     adrenalina: adrenalina,
     celula: celula,
     vida: vida,
+    granadas: municionGranada,
     escopeta: function (c, f) { return armaSuelta('escopeta', c, f); },
     ametralladora: function (c, f) { return armaSuelta('ametralladora', c, f); },
     baliza: baliza,

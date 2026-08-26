@@ -23,6 +23,8 @@ Hay dos esquemas de teclas y se cambian desde el menú:
 | Saltar (dos veces en el aire) | `Espacio` | `Espacio` |
 | Correr | `Shift` | `Shift` |
 | Disparar (mantener = cargado) | `Z` · `Ctrl` | **`Enter`** |
+| Tirar granada | `F` | `Ñ` |
+| Cambiar de granada | `E` | `O` |
 | Tiempo lento (barra ECO) | `X` | `K` |
 | Ultra velocidad (barra VEL) | `C` | `L` |
 
@@ -49,6 +51,14 @@ trajes, se termina la corrida.
 donde estuviste parado. Y cada nivel tiene una baliza a mitad de camino: si morís
 después de tocarla, reaparecés ahí y no al principio.
 
+**Caerle encima a alguien lo revienta.** Si venís bajando con velocidad y le caés
+arriba, lo aplastás, rebotás y seguís — con el grito incluido. Antes el contacto
+solo hacía daño y quedabas rebotando encima del enemigo, enganchado.
+
+**Tampoco hay techo**: con el doble salto se llega arriba de todo, y toparse contra
+una tapa invisible se sentía igual de mal. El salto sigue de largo, sale un
+instante de cuadro y vuelve.
+
 **Ellos también caen de un tiro.** Todos los enemigos son gente del equipo que la
 Compañía mandó a limpiar el pozo, y cualquiera se va con un disparo de la pistola
 base. La dificultad no está en cuánto aguantan sino en cuántos son y desde dónde
@@ -62,6 +72,18 @@ la pistola.
 **El arma dispara en seis direcciones**: al frente, en diagonal mientras corrés,
 arriba, y abajo si estás en el aire. Con la pistola, mantener el gatillo carga un
 tiro que atraviesa enemigos y desarma a quien toque.
+
+**Los disparos se cruzan en el aire**: un tiro tuyo revienta una bala enemiga. El
+disparo cargado se la lleva puesta y sigue de largo.
+
+**El arma viaja con vos.** Si terminás un sector con la escopeta a medio usar,
+arrancás el siguiente con esa misma escopeta y esa misma munición. Lo mismo con
+las granadas.
+
+**Tres granadas.** Fragmentación limpia el cuarto de una; humo te esconde (mientras
+estés en la nube, no te ven); flash los deja aturdidos unos segundos, sin
+disparar y viendo estrellitas. Se ciclan con una tecla y se reponen en cajones
+repartidos por los niveles.
 
 **Tiempo lento (ECO)**: todo el mundo se mueve al 28% de su velocidad menos vos.
 Sirve para cruzar una lluvia de proyectiles o encadenar saltos imposibles. La
@@ -115,6 +137,10 @@ No pelean de a uno: un disparo pone en alerta a todos los que están cerca, y lo
 que tienen arma buscan parapeto, se asoman por turnos, retroceden si los apurás y
 saltan cuando ven venir un balazo.
 
+Pero son gente, no radares: tienen tiempo de reacción, puntería mediocre y solo
+corrigen el rumbo cada medio segundo, nunca en el aire. No pueden calcular dónde
+vas a caer, que es exactamente lo que los hacía insoportables.
+
 - **Saqueador** — sin arma de fuego, va directo al cuerpo. Rápido y suicida.
 - **Guardia** — patrulla, te ve, se frena y dispara.
 - **Jetpack** — guardia con mochila propulsora: cubre el aire.
@@ -122,6 +148,14 @@ saltan cuando ven venir un balazo.
 - **Francotirador** — no se mueve; te marca con el láser y después pega fuerte.
 - **Pesado** — ametralladora y ráfagas largas; avanza lento y no deja pasar.
 - **Lo del fondo** — lo único que no es humano. Tres fases, cada una más rápida.
+
+## El que baja
+
+Un tipo con la cinta en la cabeza, el torso al aire y una cartuchera cruzada, que
+va comentando en voz alta lo que le pasa. Los bocadillos salen de `js/dialogos.js`
+y están atados a eventos: matar en racha, comerse un tiro, quedarse sin munición,
+aplastar a alguien, quedar con un corazón. Hay enfriamiento entre frases para que
+sea un personaje y no un loro.
 
 ## La historia
 
@@ -142,6 +176,8 @@ js/audio.js         efectos sintetizados: tonos, ruido filtrado y ambiente
 js/save.js          progreso en localStorage
 js/story.js         los textos: introducción, registros y final
 js/weapons.js       pistola, escopeta y ametralladora
+js/granadas.js      fragmentación, humo y flash
+js/dialogos.js      lo que va puteando el protagonista
 js/ranking.js       la calificación de D a S de cada nivel
 js/music.js         bajo y percusión por capa, reactivos a lo que pasa
 js/tiles.js         catálogo de tiles y su dibujo
@@ -193,6 +229,11 @@ G.motor.debug.validacion()        // validar los niveles
 eligió ver menos nivel a la vez para que cada personaje tenga más píxeles útiles:
 un enemigo mide 18x27 en vez de los 14x14 de un plataformero clásico, y eso es lo
 que permite que se lean la ropa, el casco y el arma.
+
+**El mundo se piensa en 600x336 pero se dibuja en 1200x672** y se muestra
+escalado (`G.RENDER`). Los sprites están hechos con curvas —arcos, bezier— y no
+con rectángulos, así que un hombro redondeado se ve redondeado y no escalonado.
+La lógica del juego no se enteró: sigue trabajando en las mismas coordenadas.
 
 **El tilemap estático se pre-renderiza** a un canvas del tamaño del nivel. Dibujar
 cientos de tiles con detalle en cada frame sería tirar trabajo; así se dibujan una

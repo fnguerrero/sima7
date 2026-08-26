@@ -26,12 +26,14 @@ G.input = (function () {
     normal: {
       ArrowLeft: 'izq', ArrowRight: 'der',
       ArrowUp: 'arriba', ArrowDown: 'abajo',
-      KeyZ: 'disparar', ControlLeft: 'disparar', ControlRight: 'disparar'
+      KeyZ: 'disparar', ControlLeft: 'disparar', ControlRight: 'disparar',
+      KeyF: 'granada', KeyE: 'cambiarGranada'
     },
     alternativo: {
       KeyA: 'izq', KeyD: 'der',
       KeyW: 'arriba', KeyS: 'abajo',
-      Enter: 'disparar', NumpadEnter: 'disparar'
+      Enter: 'disparar', NumpadEnter: 'disparar',
+      Semicolon: 'granada', KeyO: 'cambiarGranada'
     }
   };
 

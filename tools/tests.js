@@ -585,7 +585,7 @@
   test('el sistema de partículas tiene tope', function () {
     var ef = G.crearEfectos(400, 300, 2);
     for (var i = 0; i < 200; i++) ef.reventar(40, 40, 18, 26, 'sangre');
-    afirmar(ef.particulas.length <= 420, 'se pasó del tope: ' + ef.particulas.length);
+    afirmar(ef.particulas.length <= 700, 'se pasó del tope: ' + ef.particulas.length);
     return ef.particulas.length + ' partículas';
   });
 
@@ -788,6 +788,181 @@
     m.jugador.inmune = 1e9;
     for (var i = 0; i < 240; i++) { m.congelado = 0; m.actualizar(1 / 60); }
     afirmar(m.tiempo > 100, 'el tiempo bajó a ' + m.tiempo);
+  });
+
+  // =====================================================================
+  grupo('Aplastar y fuego cruzado');
+
+  test('caerle encima a alguien lo revienta', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.inmune = 1e9;
+    var e = primerEnemigo(m);
+    e.activa = true;
+    e.x = j.x + 40; e.y = j.y;
+    j.x = e.x; j.y = e.y - 34; j.vy = 400;
+    for (var i = 0; i < 12; i++) { m.congelado = 0; m.actualizar(1 / 120); }
+    afirmar(!e.viva, 'sobrevivió al pisotón');
+  });
+
+  test('aplastar rebota al jugador y no le hace daño', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.inmune = 1e9;
+    var vidaAntes = j.vida;
+    var e = primerEnemigo(m);
+    e.activa = true;
+    e.x = j.x + 40; e.y = j.y;
+    j.x = e.x; j.y = e.y - 34; j.vy = 400;
+    for (var i = 0; i < 12; i++) { m.congelado = 0; m.actualizar(1 / 120); }
+    afirmar(j.vy < 0, 'no rebotó');
+    igual(j.vida, vidaAntes, 'vida');
+  });
+
+  test('caer despacio encima no aplasta: hace daño', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    var e = primerEnemigo(m);
+    e.activa = true;
+    e.x = j.x + 40; e.y = j.y;
+    j.x = e.x; j.y = e.y; j.vy = 0;
+    var vidaAntes = j.vida;
+    m.actualizar(1 / 120);
+    afirmar(e.viva, 'lo aplastó sin caerle encima');
+    afirmar(j.vida < vidaAntes, 'el contacto no hizo daño');
+  });
+
+  test('un disparo mío revienta una bala enemiga', function () {
+    var m = mundoDePrueba(1);
+    m.balas.limpiar();
+    m.balas.agregar(G.crearBala('plasma', 200, 200, 400, 0, { deJugador: true, dano: 2 }));
+    m.balas.agregar(G.crearBala('bala', 260, 200, -400, 0, { dano: 1 }));
+    for (var i = 0; i < 12; i++) m.balas.actualizar(1 / 120);
+    igual(m.balas.lista.length, 0, 'balas que quedaron');
+  });
+
+  test('el disparo cargado se lleva la bala y sigue', function () {
+    var m = mundoDePrueba(1);
+    m.balas.limpiar();
+    var mia = G.crearBala('cargado', 200, 200, 400, 0,
+                          { deJugador: true, dano: 6, atraviesa: true });
+    m.balas.agregar(mia);
+    m.balas.agregar(G.crearBala('bala', 205, 200, -400, 0, { dano: 1 }));
+    m.balas.cruzarFuego();
+    afirmar(!mia.quitar, 'la cargada se frenó');
+    igual(m.balas.lista.length, 1, 'balas vivas');
+  });
+
+  // =====================================================================
+  grupo('Granadas');
+
+  test('hay tres tipos y se ciclan', function () {
+    igual(G.granadas.orden.length, 3);
+    var t = 'fragmentacion';
+    var vistos = {};
+    for (var i = 0; i < 3; i++) { vistos[t] = true; t = G.granadas.siguiente(t); }
+    igual(Object.keys(vistos).length, 3, 'tipos distintos');
+    igual(t, 'fragmentacion', 'no volvió al principio');
+  });
+
+  test('lanzar gasta una y la pone en el mundo', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    var antes = j.granadas;
+    afirmar(j.lanzarGranada(m), 'no lanzó');
+    igual(j.granadas, antes - 1, 'granadas');
+    igual(m.entidades.filter(function (e) { return e.esGranada; }).length, 1);
+  });
+
+  test('sin granadas no lanza', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    j.granadas = 0;
+    j.enfriaGranada = 0;
+    afirmar(!j.lanzarGranada(m), 'lanzó una que no tenía');
+  });
+
+  test('la de fragmentación mata a los que están cerca', function () {
+    var m = mundoDePrueba(1);
+    m.jugador.inmune = 1e9;
+    var e = G.entidades.crear('guardia', 20, 10);
+    e.activa = true;
+    m.entidades.push(e);
+    m.detonarGranada({ x: e.x, y: e.y, subtipo: 'fragmentacion' });
+    afirmar(!e.viva, 'sobrevivió a la explosión');
+  });
+
+  test('la de humo te esconde de los enemigos', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    afirmar(!m.jugadorOculto(), 'ya estaba oculto');
+    m.detonarGranada({ x: j.x + j.w / 2 - 4, y: j.y + j.h / 2 - 4, subtipo: 'humo' });
+    var nube = m.entidades.filter(function (e) { return e.esNube; })[0];
+    afirmar(nube, 'no se creó la nube');
+    for (var i = 0; i < 60; i++) nube.actualizar(1 / 60, m);
+    afirmar(m.jugadorOculto(), 'el humo no lo tapa');
+
+    var e = G.entidades.crear('guardia', Math.floor(j.x / G.TILE) + 1, 10);
+    e.activa = true;
+    m.entidades.push(e);
+    e.actualizar(1 / 60, m);
+    igual(e.alerta, 0, 'lo vio a través del humo');
+  });
+
+  test('la flash aturde y el aturdido no dispara', function () {
+    var m = mundoDePrueba(1);
+    var e = G.entidades.crear('guardia', 20, 10);
+    e.activa = true;
+    e.alerta = 2;
+    m.entidades.push(e);
+    m.detonarGranada({ x: e.x, y: e.y, subtipo: 'flash' });
+    afirmar(e.aturdido > 0, 'no quedó aturdido');
+    igual(e.alerta, 0, 'siguió alerta');
+    m.balas.limpiar();
+    for (var i = 0; i < 120; i++) { m.congelado = 0; m.actualizar(1 / 60); }
+    igual(m.balas.lista.filter(function (b) { return !b.deJugador; }).length, 0,
+          'disparó estando aturdido');
+  });
+
+  // =====================================================================
+  grupo('Continuidad y bocadillos');
+
+  test('el arma con la que terminás pasa al nivel siguiente', function () {
+    var partida = { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: 1, control: null, combo: 0 };
+    var m = G.crearMundo(1, partida);
+    m.jugador.tomarArma('escopeta');
+    m.completarNivel();
+    igual(partida.arma, 'escopeta', 'no se guardó el arma');
+
+    var m2 = G.crearMundo(2, partida);
+    igual(m2.jugador.arma, 'escopeta', 'no la heredó');
+    afirmar(m2.jugador.municion > 0, 'la heredó sin munición');
+  });
+
+  test('las granadas también viajan entre niveles', function () {
+    var partida = { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: 1, control: null, combo: 0 };
+    var m = G.crearMundo(1, partida);
+    m.jugador.granadas = 7;
+    m.jugador.tipoGranada = 'flash';
+    m.completarNivel();
+    var m2 = G.crearMundo(2, partida);
+    igual(m2.jugador.granadas, 7, 'granadas');
+    igual(m2.jugador.tipoGranada, 'flash', 'tipo');
+  });
+
+  test('hay frases para cada situación', function () {
+    ['inicio', 'baja', 'racha', 'aplaste', 'dano', 'critico',
+     'sinMunicion', 'arma', 'pozo', 'jefe', 'sector'].forEach(function (k) {
+      var bolsa = G.dialogos.bolsas[k];
+      afirmar(bolsa && bolsa.length, 'falta la bolsa de ' + k);
+    });
+  });
+
+  test('el personaje no habla encima de sí mismo', function () {
+    var m = mundoDePrueba(1);
+    var j = m.jugador;
+    afirmar(j.decir('inicio', true), 'no dijo la primera');
+    afirmar(!j.decir('baja'), 'habló sin esperar el enfriamiento');
   });
 
   // =====================================================================

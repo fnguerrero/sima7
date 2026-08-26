@@ -177,8 +177,75 @@ G.audio = (function () {
       tono(320, 70, 0.26, 'sawtooth', 0.11);
       golpe(0.22, 2600, 180, 0.16);
     },
+    lanzarGranada: function () { tono(320, 180, 0.08, 'triangle', 0.06); golpe(0.07, 1800, 500, 0.06); },
+    explosion: function () {
+      golpe(0.75, 1800, 40, 0.30);
+      tono(120, 30, 0.6, 'sawtooth', 0.14);
+    },
+    flashbang: function () {
+      golpe(0.5, 9000, 3000, 0.26, 'highpass');
+      tono(2400, 600, 0.3, 'sine', 0.10);
+      // El pitido que queda dando vueltas después
+      tono(3200, 3100, 1.6, 'sine', 0.035, 0.25);
+    },
+    humo: function () { golpe(0.9, 700, 180, 0.14); },
+    chispazo: function () { tono(1400, 400, 0.07, 'square', 0.06); golpe(0.09, 6000, 1200, 0.11, 'highpass'); },
     impacto:  function () { golpe(0.07, 2200, 400, 0.09, 'bandpass'); tono(180, 90, 0.05, 'square', 0.05); },
     carne:    function () { golpe(0.16, 900, 90, 0.17); tono(120, 45, 0.14, 'sawtooth', 0.06); },
+
+    /* Grito: una voz no es un tono, es un tono que se quiebra. Se arma con un
+       oscilador que sube de golpe y después se desploma, con vibrato encima y
+       ruido de fondo para el aire. */
+    grito: function () {
+      if (silenciado) return;
+      var c = asegurarCtx();
+      if (!c) return;
+      if (c.state === 'suspended') c.resume();
+      var t0 = c.currentTime;
+      var dur = 0.62;
+
+      var osc = c.createOscillator();
+      var gain = c.createGain();
+      var vib = c.createOscillator();
+      var vibG = c.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(240, t0);
+      osc.frequency.exponentialRampToValueAtTime(660, t0 + 0.07);
+      osc.frequency.exponentialRampToValueAtTime(430, t0 + 0.22);
+      osc.frequency.exponentialRampToValueAtTime(90, t0 + dur);
+
+      // Vibrato: el temblor de la voz
+      vib.type = 'sine';
+      vib.frequency.setValueAtTime(24, t0);
+      vib.frequency.linearRampToValueAtTime(9, t0 + dur);
+      vibG.gain.setValueAtTime(38, t0);
+      vibG.gain.exponentialRampToValueAtTime(4, t0 + dur);
+      vib.connect(vibG);
+      vibG.connect(osc.frequency);
+
+      // Formante: lo que lo vuelve garganta y no sirena
+      var formante = c.createBiquadFilter();
+      formante.type = 'bandpass';
+      formante.frequency.setValueAtTime(900, t0);
+      formante.frequency.exponentialRampToValueAtTime(380, t0 + dur);
+      formante.Q.value = 3.2;
+
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.24, t0 + 0.03);
+      gain.gain.setValueAtTime(0.24, t0 + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      osc.connect(formante);
+      formante.connect(gain);
+      gain.connect(master);
+      osc.start(t0); osc.stop(t0 + dur + 0.05);
+      vib.start(t0); vib.stop(t0 + dur + 0.05);
+
+      // Aire y el crujido del golpe
+      golpe(0.5, 2600, 200, 0.13);
+      golpe(0.14, 700, 80, 0.2);
+    },
     reventar: function () {
       golpe(0.34, 1500, 60, 0.24);
       tono(150, 38, 0.3, 'sawtooth', 0.10);

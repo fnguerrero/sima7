@@ -39,6 +39,7 @@ G.tiles = (function () {
     'e': 'celula',
     'g': 'escopeta',
     'r': 'ametralladora',
+    'n': 'granadas',
     'v': 'vida',
     '-': 'plataformaH',
     '|': 'plataformaV',
