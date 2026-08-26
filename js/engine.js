@@ -1,7 +1,11 @@
 /* engine.js — game loop y máquina de estados.
    El loop usa paso fijo con acumulador: la física siempre avanza de a 1/120 s
    aunque el navegador entregue frames irregulares. Sin esto, un tirón de 200 ms
-   haría que el jugador atraviese una pared. */
+   haría que el jugador atraviese una pared.
+
+   Dos cosas escalan el tiempo del juego y conviene no confundirlas:
+   · el hit stop y la cámara lenta viven en el mundo y afectan a todos;
+   · el poder de tiempo lento del jugador escala solo el dt del mundo, no el suyo. */
 G.motor = (function () {
   var PASO = 1 / 120;
   var MAX_ACUM = 0.25;
@@ -15,6 +19,7 @@ G.motor = (function () {
   var ultimo = 0;
   var mundo = null;
   var fallosNiveles = null;
+  var avanceTexto = 0;      // efecto de tipeo de las pantallas con texto
 
   var partida = nuevaFicha(1);
 
@@ -27,7 +32,7 @@ G.motor = (function () {
   };
 
   function nuevaFicha(nivel) {
-    return { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: nivel };
+    return { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: nivel, control: null };
   }
 
   /* ---- Partida ---- */
@@ -39,6 +44,7 @@ G.motor = (function () {
 
   function cargarNivel(n) {
     partida.nivel = n;
+    if (partida.control && partida.control.nivel !== n) partida.control = null;
     mundo = G.crearMundo(n, partida);
     estado = G.JUGANDO;
     G.audio.ambiente(FRECUENCIA_AMBIENTE[mundo.capa] || 50);
@@ -48,21 +54,34 @@ G.motor = (function () {
     cargarNivel(partida.nivel);
   }
 
+  function empezarDesde(nivel) {
+    var p = G.save.obtener();
+    if (nivel === 1 && !p.introVista) {
+      partida = nuevaFicha(1);
+      avanceTexto = 0;
+      estado = G.HISTORIA;
+      return;
+    }
+    nuevaPartida(nivel);
+  }
+
   function armarMenu() {
     var p = G.save.obtener();
     opcionesMenu = [
       { txt: p.desbloqueado > 1 ? 'Seguir bajando (sima ' + p.desbloqueado + ')' : 'Bajar',
-        accion: function () { nuevaPartida(p.desbloqueado); } },
+        accion: function () { empezarDesde(p.desbloqueado); } },
       { txt: 'Elegir profundidad',
         accion: function () { selNivel = p.desbloqueado - 1; estado = G.SELECCION; } },
       { txt: 'Empezar de cero',
-        accion: function () { nuevaPartida(1); } },
-      { txt: 'Controles',
+        accion: function () { avanceTexto = 0; partida = nuevaFicha(1); estado = G.HISTORIA; } },
+      { txt: 'Controles: ' + (G.input.esquema() === 'alternativo' ? 'WASD + Enter' : 'flechas + Z'),
+        accion: function () { G.save.guardarEsquema(G.input.alternarEsquema()); armarMenu(); } },
+      { txt: 'Ver los controles',
         accion: function () { estadoPrevio = G.MENU; estado = G.AYUDA; } },
       { txt: 'Sangre: ' + ['apagada', 'moderada', 'completa'][p.gore],
         accion: function () { G.save.cambiarGore(); armarMenu(); } },
       { txt: 'Borrar progreso',
-        accion: function () { G.save.borrar(); armarMenu(); } }
+        accion: function () { G.save.borrar(); G.input.usarEsquema(G.save.esquema()); armarMenu(); } }
     ];
     if (selMenu >= opcionesMenu.length) selMenu = 0;
   }
@@ -70,29 +89,45 @@ G.motor = (function () {
   /* ---- Entrada por pantalla ---- */
 
   function inputMenu() {
-    if (G.input.apretado('abajo')) { selMenu = (selMenu + 1) % opcionesMenu.length; }
-    if (G.input.apretado('arriba')) { selMenu = (selMenu - 1 + opcionesMenu.length) % opcionesMenu.length; }
+    if (G.input.apretado('navAbajo')) selMenu = (selMenu + 1) % opcionesMenu.length;
+    if (G.input.apretado('navArriba')) selMenu = (selMenu - 1 + opcionesMenu.length) % opcionesMenu.length;
     if (G.input.apretado('confirmar')) {
       G.audio.desbloquear();
       opcionesMenu[selMenu].accion();
       G.input.consumir('confirmar');
+      G.input.consumir('disparar');
     }
     if (G.input.apretado('ayuda')) { estadoPrevio = G.MENU; estado = G.AYUDA; G.input.consumir('ayuda'); }
   }
 
+  function inputHistoria(dt) {
+    avanceTexto += dt * 0.42;
+    if (G.input.apretado('confirmar')) {
+      G.input.consumir('confirmar');
+      G.input.consumir('disparar');
+      if (avanceTexto < 1) {
+        avanceTexto = 1;      // primer Enter: mostrar todo
+      } else {
+        G.save.marcarIntroVista();
+        nuevaPartida(1);
+      }
+    }
+  }
+
   function inputSeleccion() {
     var total = G.niveles.total;
-    if (G.input.apretado('der')) selNivel = (selNivel + 1) % total;
-    if (G.input.apretado('izq')) selNivel = (selNivel - 1 + total) % total;
-    if (G.input.apretado('abajo')) selNivel = Math.min(total - 1, selNivel + 5);
-    if (G.input.apretado('arriba')) selNivel = Math.max(0, selNivel - 5);
+    if (G.input.apretado('navDer')) selNivel = (selNivel + 1) % total;
+    if (G.input.apretado('navIzq')) selNivel = (selNivel - 1 + total) % total;
+    if (G.input.apretado('navAbajo')) selNivel = Math.min(total - 1, selNivel + 5);
+    if (G.input.apretado('navArriba')) selNivel = Math.max(0, selNivel - 5);
     if (G.input.apretado('confirmar')) {
       var p = G.save.obtener();
       if (selNivel + 1 <= p.desbloqueado) {
         G.audio.desbloquear();
-        nuevaPartida(selNivel + 1);
+        empezarDesde(selNivel + 1);
       }
       G.input.consumir('confirmar');
+      G.input.consumir('disparar');
     }
     if (G.input.apretado('pausa')) { estado = G.MENU; armarMenu(); G.input.consumir('pausa'); }
   }
@@ -100,6 +135,7 @@ G.motor = (function () {
   function inputAyuda() {
     if (G.input.apretado('confirmar') || G.input.apretado('pausa') || G.input.apretado('ayuda')) {
       G.input.consumir('confirmar');
+      G.input.consumir('disparar');
       G.input.consumir('pausa');
       G.input.consumir('ayuda');
       estado = estadoPrevio === G.PAUSA ? G.PAUSA : G.MENU;
@@ -118,13 +154,13 @@ G.motor = (function () {
     if (G.input.apretado('reiniciar')) { reiniciarNivel(); G.input.consumir('reiniciar'); }
     if (G.input.apretado('gore')) { G.save.cambiarGore(); G.input.consumir('gore'); }
     if (G.input.apretado('ayuda')) { estadoPrevio = G.PAUSA; estado = G.AYUDA; G.input.consumir('ayuda'); }
-    if (G.input.apretado('confirmar')) { estado = G.MENU; armarMenu(); G.input.consumir('confirmar'); }
+    if (G.input.apretado('salir')) { estado = G.MENU; armarMenu(); G.input.consumir('salir'); }
   }
 
   /* ---- Transiciones del juego ---- */
 
   function avanzarJuego(dt) {
-    mundo.actualizar(dt);
+    mundo.actualizar(dt * mundo.factorTiempo());
 
     if (mundo.estado === 'muerto' && mundo.tEstado > 1.8) {
       partida.vidas--;
@@ -142,6 +178,8 @@ G.motor = (function () {
       G.save.desbloquear(mundo.numero + 1);
       G.save.registrarPuntaje(partida.puntaje);
       G.save.registrarTiempo(mundo.numero, mundo.tiempoJugado);
+      partida.control = null;
+      avanceTexto = 0;
       if (mundo.numero >= G.niveles.total) {
         G.save.marcarCompletado();
         G.audio.callarAmbiente();
@@ -165,6 +203,9 @@ G.motor = (function () {
       case G.MENU:
         inputMenu();
         break;
+      case G.HISTORIA:
+        inputHistoria(dt);
+        break;
       case G.SELECCION:
         inputSeleccion();
         break;
@@ -179,15 +220,27 @@ G.motor = (function () {
         inputPausa();
         break;
       case G.NIVEL_OK:
+        avanceTexto += dt * 1.1;
         if (G.input.apretado('confirmar')) {
           G.input.consumir('confirmar');
-          cargarNivel(partida.nivel + 1);
+          G.input.consumir('disparar');
+          if (avanceTexto < 1) avanceTexto = 1;
+          else cargarNivel(partida.nivel + 1);
+        }
+        break;
+      case G.FINAL:
+        avanceTexto += dt * 0.5;
+        if (G.input.apretado('confirmar')) {
+          G.input.consumir('confirmar');
+          G.input.consumir('disparar');
+          if (avanceTexto < 1) avanceTexto = 1;
+          else { estado = G.MENU; armarMenu(); }
         }
         break;
       case G.GAME_OVER:
-      case G.FINAL:
         if (G.input.apretado('confirmar')) {
           G.input.consumir('confirmar');
+          G.input.consumir('disparar');
           estado = G.MENU;
           armarMenu();
         }
@@ -207,11 +260,14 @@ G.motor = (function () {
       case G.MENU:
         G.pantallas.menu(ctx, t, opcionesMenu, selMenu, p);
         break;
+      case G.HISTORIA:
+        G.pantallas.historia(ctx, t, avanceTexto);
+        break;
       case G.SELECCION:
         G.pantallas.seleccion(ctx, t, selNivel, p);
         break;
       case G.AYUDA:
-        G.pantallas.ayuda(ctx, t);
+        G.pantallas.ayuda(ctx, t, G.input.esquema());
         break;
       case G.JUGANDO:
         mundo.dibujar(ctx);
@@ -225,15 +281,14 @@ G.motor = (function () {
         break;
       case G.NIVEL_OK:
         mundo.dibujar(ctx);
-        G.hud.dibujar(ctx, mundo, partida);
-        G.pantallas.nivelOk(ctx, t, mundo, partida);
+        G.pantallas.nivelOk(ctx, t, mundo, partida, avanceTexto);
         break;
       case G.GAME_OVER:
         if (mundo) { mundo.dibujar(ctx); G.hud.dibujar(ctx, mundo, partida); }
         G.pantallas.gameOver(ctx, t, partida);
         break;
       case G.FINAL:
-        G.pantallas.final(ctx, t, partida);
+        G.pantallas.final(ctx, t, partida, avanceTexto);
         break;
     }
   }
@@ -260,6 +315,8 @@ G.motor = (function () {
     ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
+    G.input.usarEsquema(G.save.esquema());
+
     // Un nivel roto tiene que fallar acá, no a mitad de partida
     var resultados = G.validador.validarTodos();
     fallosNiveles = resultados.filter(function (r) { return !r.ok; });
@@ -283,11 +340,12 @@ G.motor = (function () {
       irANivel: function (n) { G.save.desbloquear(n); nuevaPartida(n); return estado; },
       matar: function () { if (mundo) { mundo.jugador.vida = 0; mundo.jugador.morir(mundo); } },
       invencible: function () { if (mundo) mundo.jugador.inmune = 9999; },
+      arma: function (tipo) { if (mundo) mundo.jugador.tomarArma(tipo); },
       completar: function () {
         if (!mundo) return null;
         var meta = mundo.entidades.filter(function (e) { return e.esMeta; })[0];
         if (!meta) return null;
-        mundo.jugador.x = meta.x + 6;
+        mundo.jugador.x = meta.x + 10;
         mundo.jugador.y = meta.y + meta.h - mundo.jugador.h;
         return true;
       },

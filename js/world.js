@@ -34,7 +34,11 @@ G.crearMundo = function (numeroNivel, partida) {
     t: 0,
     flashDano: 0,
     esquirlasNivel: 0,
-    jefe: null
+    jefe: null,
+    congelado: 0,        // hit stop: el mundo se detiene, la pantalla no
+    lenta: 0,            // cámara lenta breve al limpiar una zona
+    cadaveres: [],
+    control: null        // baliza activada en este nivel
   };
 
   G.capaActual = mundo.paleta;
@@ -60,6 +64,12 @@ G.crearMundo = function (numeroNivel, partida) {
     }
     return chars.join('');
   });
+
+  // Si en este nivel ya se activó una baliza, se reaparece ahí
+  if (partida.control && partida.control.nivel === mundo.numero) {
+    spawnCol = partida.control.col;
+    spawnFila = partida.control.fila;
+  }
 
   mundo.jugador = G.crearJugador(spawnCol, spawnFila);
   mundo.camara = G.crearCamara(mundo.ancho, mundo.alto);
@@ -135,6 +145,37 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.flashDano = Math.max(mundo.flashDano, fuerza);
   };
 
+  /* Hit stop: unos milisegundos sin simular. Es lo que hace que un disparo se
+     sienta como un impacto y no como restar un número. */
+  mundo.congelar = function (seg) {
+    mundo.congelado = Math.max(mundo.congelado, seg);
+  };
+
+  mundo.fijarControl = function (col, fila) {
+    mundo.control = { col: col, fila: fila };
+    partida.control = { nivel: mundo.numero, col: col, fila: fila };
+  };
+
+  /* Los cadáveres se acumulan hasta un tope; el más viejo se va. */
+  function agregarCadaver(cad) {
+    mundo.cadaveres.push(cad);
+    mundo.entidades.push(cad);
+    if (mundo.cadaveres.length > G.MAX_CADAVERES) {
+      var viejo = mundo.cadaveres.shift();
+      viejo.quitar = true;
+    }
+  }
+
+  function quedanEnemigosCerca() {
+    var camX = mundo.camara.x;
+    for (var i = 0; i < mundo.entidades.length; i++) {
+      var e = mundo.entidades[i];
+      if (!e.enemigo || !e.viva || e.quitar) continue;
+      if (e.x > camX - 120 && e.x < camX + G.VIEW_W + 120) return true;
+    }
+    return false;
+  }
+
   /* ---- Daño a enemigos ---- */
 
   mundo.danarEnemigo = function (e, dano, vx, vy, bala) {
@@ -165,29 +206,51 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.jugador.bajas++;
     partida.bajas++;
     mundo.sumarPuntos(e.puntos || 100, cx, e.y);
-    mundo.jugador.cargarAdrenalina(e.esJefe ? 100 : 8);
+    mundo.jugador.cargarAdrenalina(e.esJefe ? 100 : 10);
 
     var exceso = dano >= G.CARGA_DANO || dano >= 99;
-    if (exceso || e.esJefe) {
-      mundo.efectos.reventar(e.x, e.y, e.w, e.h, e.sangre);
-      mundo.efectos.charco(cx, e.y + e.h, e.esJefe ? 18 : 7, e.sangre);
-      mundo.camara.sacudir(e.esJefe ? 0.6 : 0.18, e.esJefe ? 9 : 4);
-      G.audio.reventar();
+
+    if (e.humano) {
+      // Siempre vuela algo; con un impacto fuerte no queda cuerpo que recoger
+      mundo.efectos.salpicar(bala ? bala.x : cx, bala ? bala.y : cy,
+                             dx / l, dy / l, 2, 'sangre');
+      if (exceso) {
+        mundo.efectos.reventar(e.x, e.y, e.w, e.h, 'sangre');
+        mundo.efectos.charco(cx, e.y + e.h, 12, 'sangre');
+        mundo.camara.sacudir(0.2, 5);
+        mundo.congelar(G.CONGELAR_REVENTAR);
+        G.audio.reventar();
+      } else {
+        // Muerte normal: igual salen vísceras, y el cuerpo sale despedido
+        mundo.efectos.reventar(e.x, e.y, e.w, e.h, 'sangre');
+        var cad = G.entidades.crearCadaver(
+          e.x, e.y + e.h - 13, dx >= 0 ? 1 : -1,
+          (dx / l) * 190 + (Math.random() - 0.5) * 60,
+          -170 - Math.random() * 90,
+          G.entidades.ropaDe(e.tipo));
+        agregarCadaver(cad);
+        mundo.camara.sacudir(0.12, 3);
+        mundo.congelar(G.CONGELAR_MUERTE);
+        G.audio.carne();
+      }
+      // Si era el último de la zona, un respiro en cámara lenta
+      if (!quedanEnemigosCerca()) {
+        mundo.lenta = Math.max(mundo.lenta, G.LENTA_ULTIMA_BAJA);
+        G.audio.zonaLimpia();
+      }
     } else {
-      mundo.efectos.salpicar(cx, cy, dx / l, dy / l, 1.6, e.sangre);
       mundo.efectos.reventar(e.x, e.y, e.w, e.h, e.sangre);
-      mundo.efectos.charco(cx, e.y + e.h, 5, e.sangre);
-      G.audio.carne();
-    }
-    if (e.sangre === 'icor') {
-      mundo.efectos.chispas(cx, cy, 14, '#ffd9a0');
-      mundo.efectos.humo(cx, cy, 5);
-      mundo.efectos.destello(cx, cy, 30, '#ffb45c', 0.16);
+      mundo.efectos.chispas(cx, cy, 16, '#ffd9a0');
+      mundo.efectos.humo(cx, cy, 6);
+      mundo.efectos.destello(cx, cy, 40, '#ffb45c', 0.16);
+      mundo.camara.sacudir(e.esJefe ? 0.6 : 0.2, e.esJefe ? 10 : 4);
+      mundo.congelar(G.CONGELAR_REVENTAR);
+      G.audio.reventar();
     }
 
     if (e.esJefe) {
       mundo.jefe = null;
-      mundo.efectos.destello(cx, cy, 140, '#ff7a3c', 0.7);
+      mundo.efectos.destello(cx, cy, 180, '#ff7a3c', 0.7);
       completarNivel();
     }
   };
@@ -331,6 +394,14 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.t += dt;
     if (mundo.flashDano > 0) mundo.flashDano = Math.max(0, mundo.flashDano - dt * 2.2);
 
+    // Hit stop: el mundo entero queda quieto unos milisegundos, salvo las
+    // partículas, que son las que hacen que el instante se lea
+    if (mundo.congelado > 0) {
+      mundo.congelado -= dt;
+      mundo.efectos.actualizar(dt * 0.35, mundo.mapa);
+      return;
+    }
+
     if (mundo.estado !== 'jugando') {
       mundo.tEstado += dt;
       if (mundo.estado === 'muerto') mundo.jugador.actualizar(dt, mundo);
@@ -348,7 +419,9 @@ G.crearMundo = function (numeroNivel, partida) {
       mundo.jugador.morir(mundo);
     }
 
-    // El poder del jugador ralentiza todo lo demás
+    // El poder del jugador ralentiza todo lo demás; la cámara lenta tras limpiar
+    // una zona ralentiza también al jugador, y por eso se aplica afuera
+    if (mundo.lenta > 0) mundo.lenta -= dt;
     var escala = mundo.jugador.lentoActivo ? G.ESCALA_LENTA : 1;
     var dtM = dt * escala;
 
@@ -391,9 +464,9 @@ G.crearMundo = function (numeroNivel, partida) {
     ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
 
     // Capa lejana: siluetas de estructura
-    dibujarSiluetas(ctx, camX, 0.12, P.lejos, 120, 88, 3);
-    dibujarSiluetas(ctx, camX, 0.28, P.medio, 96, 132, 7);
-    dibujarSiluetas(ctx, camX, 0.5, P.cerca, 72, 168, 11);
+    dibujarSiluetas(ctx, camX, 0.10, P.lejos, 130, 74, 3, false);
+    dibujarSiluetas(ctx, camX, 0.26, P.medio, 104, 118, 7, true);
+    dibujarSiluetas(ctx, camX, 0.48, P.cerca, 78, 156, 11, true);
 
     // Motas suspendidas: polvo, esporas o ceniza según la capa
     ctx.fillStyle = P.particula;
@@ -409,25 +482,57 @@ G.crearMundo = function (numeroNivel, partida) {
     ctx.globalAlpha = 1;
   }
 
-  /* Perfil recortado de estructuras: torres, cintas transportadoras, arcos.
-     Con el mismo generador cambian de forma según la capa y el nivel. */
-  function dibujarSiluetas(ctx, camX, factor, color, sep, baseY, semilla) {
-    ctx.fillStyle = color;
+  /* Perfil recortado de la estructura de la mina. Cada silueta lleva su propio
+     detalle (vigas, torres, luces lejanas) porque un bloque liso repetido es lo
+     que hacía que el fondo se leyera como cartón pintado. */
+  function dibujarSiluetas(ctx, camX, factor, color, sep, baseY, semilla, detalle) {
     var ancho = sep * 14;
     for (var i = 0; i < 14; i++) {
       var x = (i * sep - camX * factor) % ancho;
       if (x < -sep) x += ancho;
       if (x > G.VIEW_W + sep) continue;
+      x = Math.round(x);
+
       var n = G.ruido(i * 3.7 + semilla + mundo.numero);
-      var alto = 60 + n * 120;
-      var an = 22 + Math.floor(n * 40);
-      ctx.fillRect(Math.round(x), Math.round(baseY - alto * 0.35), an, G.VIEW_H);
-      // Detalle vertical: torre o chimenea
+      var n2 = G.ruido(i * 8.1 + semilla);
+      var alto = 70 + n * 130;
+      var an = 26 + Math.floor(n * 46);
+      var topeY = Math.round(baseY - alto * 0.35);
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x, topeY, an, G.VIEW_H);
+
+      // Remate de la torre
       if (n > 0.55) {
-        ctx.fillRect(Math.round(x + an * 0.3), Math.round(baseY - alto * 0.7), 8, alto * 0.4);
+        ctx.fillRect(x + Math.round(an * 0.28), Math.round(topeY - alto * 0.28), 10, Math.round(alto * 0.3));
+        ctx.fillRect(x + Math.round(an * 0.2), Math.round(topeY - alto * 0.3), 20, 5);
       }
-      if (n < 0.3) {
-        ctx.fillRect(Math.round(x - 6), Math.round(baseY - alto * 0.2), an + 12, 5);
+      // Voladizo / cinta transportadora
+      if (n < 0.34) {
+        ctx.fillRect(x - 10, topeY + 14, an + 20, 6);
+        ctx.fillRect(x - 10, topeY + 20, 4, 12);
+        ctx.fillRect(x + an + 4, topeY + 20, 4, 12);
+      }
+
+      if (!detalle) continue;
+
+      // Borde superior apenas más claro: le da volumen sin aclarar todo
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(x, topeY, an, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillRect(x + an - 3, topeY, 3, G.VIEW_H - topeY);
+
+      // Vigas horizontales
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      for (var v = topeY + 12; v < G.VIEW_H; v += 22) ctx.fillRect(x, v, an, 2);
+
+      // Ventanas encendidas: los únicos puntos cálidos del fondo
+      var luces = Math.floor(n2 * 4);
+      for (var w = 0; w < luces; w++) {
+        var lx = x + 5 + Math.floor(G.ruido(i * 5 + w) * (an - 12));
+        var ly = topeY + 8 + Math.floor(G.ruido(i * 7 + w * 3) * 70);
+        ctx.fillStyle = 'rgba(255,190,110,' + (0.10 + 0.16 * Math.abs(Math.sin(mundo.t * 0.7 + i + w))).toFixed(3) + ')';
+        ctx.fillRect(lx, ly, 4, 3);
       }
     }
   }
@@ -607,6 +712,12 @@ G.crearMundo = function (numeroNivel, partida) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
   }
+
+  /* Factor global de velocidad: 1 normal, menos durante la cámara lenta del
+     último enemigo. El motor lo usa para escalar el dt de todo el juego. */
+  mundo.factorTiempo = function () {
+    return mundo.lenta > 0 ? 0.45 : 1;
+  };
 
   /* Expuesto para los tests. */
   mundo.charEn = charEn;

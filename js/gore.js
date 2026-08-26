@@ -70,32 +70,69 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     }
   };
 
-  /* Reventar un enemigo: pedazos con rotación + chorro. */
+  /* Reventar a alguien: vísceras, huesos y miembros, además del chorro.
+     Los pedazos no son todos iguales a propósito: un cuerpo que estalla se lee
+     como cuerpo cuando volando hay cosas de distinta forma y color. */
+  var PARTES = [
+    { clase: 'organo', color: G.color.visceras, borde: G.color.visceraClara, tam: 4 },
+    { clase: 'organo', color: '#7a1c28', borde: '#b04552', tam: 3 },
+    { clase: 'tripa',  color: '#a8323f', borde: '#d0616c', tam: 3 },
+    { clase: 'hueso',  color: G.color.hueso, borde: '#ffffff', tam: 2 },
+    { clase: 'trozo',  color: G.color.sangre, borde: G.color.sangreClara, tam: 3 }
+  ];
+
   sis.reventar = function (x, y, w, h, clase) {
-    sis.salpicar(x + w / 2, y + h / 2, 0, -1, 2, clase);
+    sis.salpicar(x + w / 2, y + h / 2, 0, -1, 2.4, clase);
     if (gore === 0) {
-      sis.chispas(x + w / 2, y + h / 2, 10);
+      sis.chispas(x + w / 2, y + h / 2, 12);
       return;
     }
-    var n = cuantas(gore === 2 ? 9 : 4);
+
+    var esMaquina = clase === 'icor';
+    var n = gore === 2 ? 16 : 6;
     for (var i = 0; i < n; i++) {
+      var parte = esMaquina
+        ? { clase: 'chatarra', color: '#7c8794', borde: '#b6c2cf', tam: 3 }
+        : PARTES[i % PARTES.length];
+      var grande = !esMaquina && gore === 2 && i < 4;
       agregar({
         tipo: 'pedazo',
+        subtipo: parte.clase,
         x: x + Math.random() * w,
         y: y + Math.random() * h,
-        vx: (Math.random() - 0.5) * 260,
-        vy: -80 - Math.random() * 220,
-        vida: 1.4 + Math.random() * 1.2, max: 2.6,
-        tam: 2 + Math.floor(Math.random() * 3),
+        vx: (Math.random() - 0.5) * (grande ? 320 : 400),
+        vy: -140 - Math.random() * 300,
+        vida: 1.6 + Math.random() * 1.6, max: 3.2,
+        tam: parte.tam + (grande ? 2 : 0) + Math.floor(Math.random() * 2),
         rot: Math.random() * 6.28,
-        vrot: (Math.random() - 0.5) * 18,
-        color: colorSangre(clase),
-        colorBorde: colorSangreClaro(clase),
+        vrot: (Math.random() - 0.5) * 22,
+        color: parte.color,
+        colorBorde: parte.borde,
         clase: clase || 'sangre',
-        gravedad: 780,
-        rastro: gore === 2,
-        mancha: true
+        gravedad: 1100,
+        rastro: gore === 2 && !esMaquina,
+        mancha: !esMaquina
       });
+    }
+
+    // Estallido de gotas finas en todas las direcciones
+    if (!esMaquina) {
+      for (var k = 0; k < cuantas(gore === 2 ? 26 : 10); k++) {
+        var ang = Math.random() * Math.PI * 2;
+        var vel = 90 + Math.random() * 320;
+        agregar({
+          tipo: 'gota',
+          x: x + w / 2, y: y + h / 2,
+          vx: Math.cos(ang) * vel,
+          vy: Math.sin(ang) * vel - 60,
+          vida: 0.5 + Math.random() * 0.8, max: 1.3,
+          tam: 1 + Math.floor(Math.random() * 3),
+          color: Math.random() < 0.35 ? colorSangreClaro(clase) : colorSangre(clase),
+          clase: clase || 'sangre',
+          gravedad: 1100,
+          mancha: true
+        });
+      }
     }
   };
 
@@ -361,10 +398,30 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
         ctx.globalAlpha = Math.min(1, k * 1.6);
         ctx.translate(Math.round(p.x), Math.round(p.y));
         ctx.rotate(p.rot || 0);
+        var t = p.tam;
         ctx.fillStyle = p.color;
-        ctx.fillRect(-p.tam, -p.tam * 0.7, p.tam * 2, p.tam * 1.4);
-        ctx.fillStyle = p.colorBorde || p.color;
-        ctx.fillRect(-p.tam, -p.tam * 0.7, p.tam * 2, 1);
+        if (p.subtipo === 'tripa') {
+          // Tira alargada que ondula
+          ctx.fillRect(-t * 2, -1, t * 4, 2);
+          ctx.fillRect(-t * 2, -2, t, 2);
+          ctx.fillRect(t, 0, t, 2);
+          ctx.fillStyle = p.colorBorde;
+          ctx.fillRect(-t * 2, -1, t * 4, 1);
+        } else if (p.subtipo === 'hueso') {
+          ctx.fillRect(-t, -1, t * 2, 2);
+          ctx.fillRect(-t - 1, -2, 2, 4);
+          ctx.fillRect(t - 1, -2, 2, 4);
+        } else if (p.subtipo === 'organo') {
+          // Bulto redondeado
+          ctx.fillRect(-t, -t * 0.8, t * 2, t * 1.6);
+          ctx.fillRect(-t * 0.7, -t, t * 1.4, t * 2);
+          ctx.fillStyle = p.colorBorde;
+          ctx.fillRect(-t * 0.6, -t * 0.7, t * 0.8, 2);
+        } else {
+          ctx.fillRect(-t, -t * 0.7, t * 2, t * 1.4);
+          ctx.fillStyle = p.colorBorde || p.color;
+          ctx.fillRect(-t, -t * 0.7, t * 2, 1);
+        }
         ctx.restore();
         ctx.globalAlpha = 1;
         continue;

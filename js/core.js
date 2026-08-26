@@ -4,46 +4,48 @@
    colores a la capa activa, así el cambio de bioma se nota sin duplicar código. */
 var G = {};
 
-G.TILE = 16;
-G.VIEW_W = 640;
-G.VIEW_H = 352;
-G.ROWS = 22;              // 22 filas * 16px = 352px, la altura exacta del viewport
-G.COLS_VISIBLE = 40;      // 40 columnas * 16px = 640px
+G.TILE = 24;
+G.VIEW_W = 600;
+G.VIEW_H = 336;
+G.ROWS = 14;              // 14 filas * 24px = 336px, la altura exacta del viewport
+G.COLS_VISIBLE = 25;      // 25 columnas * 24px = 600px
+G.ESCALA = 1.5;           // referencia: todo se agrandó 1.5x respecto de los 16px
 
 /* ---------------- Física ----------------
-   Unidades: px/seg y px/seg². */
-G.GRAVEDAD = 1600;
-G.GRAVEDAD_SUAVE = 850;   // mientras se mantiene el salto: subida más larga
-G.VEL_MAX_CAIDA = 620;
+   Unidades: px/seg y px/seg². Todo escalado al tile de 24px. */
+G.GRAVEDAD = 2400;
+G.GRAVEDAD_SUAVE = 1275;  // mientras se mantiene el salto: subida más larga
+G.VEL_MAX_CAIDA = 930;
 
-G.VEL_CAMINAR = 118;
-G.VEL_CORRER = 198;
-G.VEL_TURBO = 330;        // con la habilidad de ultra velocidad activa
-G.ACEL_SUELO = 850;
-G.ACEL_AIRE = 560;
-G.FRICCION_SUELO = 1000;
-G.FRICCION_AIRE = 200;
+G.VEL_CAMINAR = 175;
+G.VEL_CORRER = 295;
+G.VEL_TURBO = 495;        // con la habilidad de ultra velocidad activa
+G.ACEL_SUELO = 1275;
+G.ACEL_AIRE = 840;
+G.FRICCION_SUELO = 1500;
+G.FRICCION_AIRE = 300;
 
-/* Con IMPULSO 360 y GRAVEDAD_SUAVE 850 el salto sube ~76px (4,7 tiles).
-   El segundo salto agrega poco más de 2 tiles. El validador es conservador
-   a propósito: acepta menos de lo que el jugador realmente puede. */
-G.IMPULSO_SALTO = 360;
-G.IMPULSO_SALTO2 = 300;   // doble salto
-G.ALTURA_SALTO_TILES = 5;
-G.HUECO_MAX_TILES = 7;
-G.COYOTE = 0.10;          // seg de gracia para saltar después de dejar el piso
-G.BUFFER_SALTO = 0.13;    // seg de gracia si se aprieta saltar justo antes de aterrizar
+/* Salto deliberadamente generoso: con IMPULSO 620 y GRAVEDAD_SUAVE 1275 sube
+   ~150px (6,2 tiles) y cruza unos 10 tiles corriendo. El segundo salto agrega
+   otros 4 tiles. Caerse a un pozo tiene que ser un error grosero, no un peaje. */
+G.IMPULSO_SALTO = 620;
+G.IMPULSO_SALTO2 = 520;   // doble salto
+G.ALTURA_SALTO_TILES = 6;
+G.HUECO_MAX_TILES = 8;
+G.COYOTE = 0.13;          // seg de gracia para saltar después de dejar el piso
+G.BUFFER_SALTO = 0.15;    // seg de gracia si se aprieta saltar justo antes de aterrizar
 
 /* ---------------- Jugador ---------------- */
-G.VIDA_MAX = 5;           // impactos que aguanta antes de caer
+G.VIDA_MAX = 5;
 G.INMUNE_TRAS_GOLPE = 1.1;
+G.DANO_CAIDA = 1;         // caer a un pozo cuesta vida, no la partida
 
-G.CADENCIA = 0.17;        // seg entre disparos
-G.CADENCIA_TURBO = 0.10;
-G.BALA_VEL = 420;
-G.BALA_DANO = 1;
+G.CADENCIA = 0.16;        // seg entre disparos
+G.CADENCIA_TURBO = 0.09;
+G.BALA_VEL = 620;
+G.BALA_DANO = 2;          // de un tiro alcanza para cualquier humano
 G.CARGA_MIN = 0.42;       // seg manteniendo el gatillo para que salga cargada
-G.CARGA_DANO = 3;
+G.CARGA_DANO = 6;
 
 G.ECO_MAX = 100;          // energía del tiempo lento
 G.ECO_COSTO = 34;         // por segundo activo
@@ -55,10 +57,20 @@ G.ADRENALINA_GASTO = 30;  // por segundo activa
 G.ADRENALINA_REGEN = 4.2; // por segundo, sola
 G.ADRENALINA_MINIMA = 25; // hace falta este mínimo para poder activarla
 
+/* ---------------- Impacto ----------------
+   El congelamiento al matar es lo que hace que un disparo se sienta. Son pocos
+   milisegundos: el mundo se detiene, la pantalla no. */
+G.CONGELAR_MUERTE = 0.055;
+G.CONGELAR_REVENTAR = 0.09;
+G.LENTA_ULTIMA_BAJA = 0.9;   // seg de cámara lenta al limpiar una zona
+G.MAX_CADAVERES = 22;
+
 /* ---------------- Estados de la máquina principal ---------------- */
 G.MENU = 'menu';
 G.SELECCION = 'seleccion';
 G.AYUDA = 'ayuda';
+G.HISTORIA = 'historia';
+G.INFORME = 'informe';
 G.JUGANDO = 'jugando';
 G.PAUSA = 'pausa';
 G.NIVEL_OK = 'nivel_ok';
@@ -137,10 +149,13 @@ G.capas = {
 
 /* Colores que no dependen de la capa. */
 G.color = {
-  sangre: '#b8121b',
+  sangre: '#c2131d',
   sangreOsc: '#6d0a10',
   sangreClara: '#e8323c',
-  icor: '#7ad13a',          // "sangre" de los drones y los antiguos
+  visceras: '#8e2230',      // tripas y órganos
+  visceraClara: '#c4515c',
+  hueso: '#e8e0cf',
+  icor: '#7ad13a',          // "sangre" de las máquinas y de lo que hay en el fondo
   icorOsc: '#3f7a17',
   chispa: '#ffd9a0',
   plasma: '#7df9ff',

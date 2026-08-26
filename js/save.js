@@ -9,6 +9,8 @@ G.save = (function () {
     mejorPuntaje: 0,
     completado: false,
     gore: 2,            // 0 apagado · 1 moderado · 2 completo
+    esquema: 'normal',  // normal | alternativo
+    introVista: false,  // si ya vio la introducción de la historia
     mejorTiempo: {}     // por nivel, en segundos
   };
 
@@ -22,6 +24,8 @@ G.save = (function () {
         mejorPuntaje: parseInt(datos.mejorPuntaje, 10) || 0,
         completado: !!datos.completado,
         gore: datos.gore == null ? 2 : G.clamp(parseInt(datos.gore, 10), 0, 2),
+        esquema: datos.esquema === 'alternativo' ? 'alternativo' : 'normal',
+        introVista: !!datos.introVista,
         mejorTiempo: (datos.mejorTiempo && typeof datos.mejorTiempo === 'object') ? datos.mejorTiempo : {}
       };
     } catch (e) {
@@ -62,6 +66,15 @@ G.save = (function () {
       }
     },
     nivelGore: function () { return estado.gore; },
+    esquema: function () { return estado.esquema; },
+    guardarEsquema: function (nombre) {
+      estado.esquema = nombre === 'alternativo' ? 'alternativo' : 'normal';
+      escribir(estado);
+      return estado.esquema;
+    },
+    marcarIntroVista: function () {
+      if (!estado.introVista) { estado.introVista = true; escribir(estado); }
+    },
     cambiarGore: function () {
       estado.gore = (estado.gore + 1) % 3;
       escribir(estado);

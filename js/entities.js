@@ -1,11 +1,12 @@
-/* entities.js — enemigos, ítems, plataformas y la salida.
+/* entities.js — enemigos, cadáveres, ítems, plataformas y la salida.
    Todas comparten la interfaz actualizar(dt, mundo) / dibujar(ctx, t) y arrancan
-   dormidas: se activan cuando la cámara se les acerca, así un enemigo del final
-   del nivel no se cae de una plataforma antes de que lo veas.
+   dormidas: se activan cuando la cámara se les acerca.
 
-   Los enemigos ya no se matan de un pisotón: tienen vida y se los baja a tiros.
-   Cada uno declara de qué sangra (`sangre`) y cuánto aguanta; world.danarEnemigo
-   se encarga del resto. */
+   Los enemigos son gente: el equipo que la Compañía mandó a limpiar el pozo.
+   Todos caen de un tiro del arma base — la dificultad no está en cuánto aguantan
+   sino en cuántos son, desde dónde disparan y qué tan rápido te rodean.
+   Al morir dejan un cadáver con su charco; si el impacto es fuerte no queda
+   cadáver: queda esparcido. */
 G.entidades = (function () {
   var T = G.TILE;
 
@@ -28,6 +29,7 @@ G.entidades = (function () {
   function baseEnemigo(tipo, col, fila, w, h, vida, sangre) {
     var e = base(tipo, col, fila, w, h);
     e.enemigo = true;
+    e.humano = sangre !== 'icor';
     e.vida = vida;
     e.vidaMax = vida;
     e.sangre = sangre || 'sangre';
@@ -36,13 +38,13 @@ G.entidades = (function () {
     e.dir = -1;
     e.puntos = 100;
     e.empuje = 0;
+    e.alerta = 0;
     return e;
   }
 
-  /* Tinte blanco al recibir un impacto: el feedback más barato y más legible.
-     El tinte se aplica sobre la silueta real, no sobre la caja: en un enemigo
-     grande, pintar el rectángulo entero se veía como un bloque de color.
-     Para eso el sprite se dibuja aparte y se tiñe con `source-atop`. */
+  /* Tinte blanco al recibir un impacto, aplicado sobre la silueta real y no
+     sobre la caja: en un enemigo grande, pintar el rectángulo entero se veía
+     como un bloque de color. Por eso el sprite se dibuja aparte y se tiñe. */
   var lienzoFlash = null, ctxFlash = null;
 
   function conFlash(e, ctx, fn) {
@@ -51,14 +53,14 @@ G.entidades = (function () {
 
     if (!lienzoFlash) {
       lienzoFlash = document.createElement('canvas');
-      lienzoFlash.width = 128;
-      lienzoFlash.height = 128;
+      lienzoFlash.width = 192;
+      lienzoFlash.height = 192;
       ctxFlash = lienzoFlash.getContext('2d');
     }
-    var w = e.w + 8, h = e.h + 8;
+    var w = e.w + 12, h = e.h + 12;
     if (w > lienzoFlash.width || h > lienzoFlash.height) return;
 
-    var ox = Math.round(e.x) - 4, oy = Math.round(e.y) - 4;
+    var ox = Math.round(e.x) - 6, oy = Math.round(e.y) - 6;
     ctxFlash.setTransform(1, 0, 0, 1, 0, 0);
     ctxFlash.clearRect(0, 0, w, h);
     ctxFlash.translate(-ox, -oy);
@@ -75,15 +77,15 @@ G.entidades = (function () {
     ctx.restore();
   }
 
-  /* Barra de vida flotante, solo para los que aguantan varios impactos. */
+  /* Solo el jefe aguanta lo suficiente como para necesitar barra. */
   function barraVida(ctx, e) {
-    if (e.vidaMax < 4 || e.vida >= e.vidaMax || !e.viva) return;
-    var an = e.w + 4;
-    var x = Math.round(e.x - 2), y = Math.round(e.y) - 6;
+    if (e.vidaMax < 8 || e.vida >= e.vidaMax || !e.viva) return;
+    var an = e.w + 6;
+    var x = Math.round(e.x - 3), y = Math.round(e.y) - 8;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(x, y, an, 3);
+    ctx.fillRect(x, y, an, 4);
     ctx.fillStyle = e.vida / e.vidaMax > 0.4 ? '#d24a4a' : '#ff8a3a';
-    ctx.fillRect(x + 1, y + 1, Math.round((an - 2) * (e.vida / e.vidaMax)), 1);
+    ctx.fillRect(x + 1, y + 1, Math.round((an - 2) * (e.vida / e.vidaMax)), 2);
   }
 
   function veAlJugador(e, mundo, rango) {
@@ -91,7 +93,7 @@ G.entidades = (function () {
     if (j.muerto) return false;
     var dx = (j.x + j.w / 2) - (e.x + e.w / 2);
     var dy = (j.y + j.h / 2) - (e.y + e.h / 2);
-    return Math.abs(dx) < rango && Math.abs(dy) < rango * 0.7;
+    return Math.abs(dx) < rango && Math.abs(dy) < rango * 0.6;
   }
 
   function haciaJugador(e, mundo) {
@@ -101,24 +103,126 @@ G.entidades = (function () {
   function empujar(e, dt) {
     if (e.empuje) {
       e.x += e.empuje * dt;
-      e.empuje = G.aprox(e.empuje, 0, 600 * dt);
+      e.empuje = G.aprox(e.empuje, 0, 900 * dt);
     }
   }
 
+  /* Dispara hacia el jugador con una desviación en radianes. */
+  function tirarleAlJugador(e, mundo, opts) {
+    opts = opts || {};
+    var j = mundo.jugador;
+    var ox = e.x + e.w / 2 + (opts.despX || 0) * e.dir;
+    var oy = e.y + (opts.despY == null ? e.h * 0.35 : opts.despY);
+    var dx = (j.x + j.w / 2) - ox;
+    var dy = (j.y + j.h * 0.4) - oy;
+    var ang = Math.atan2(dy, dx) + (opts.desvio || 0);
+    var vel = opts.vel || 330;
+    mundo.balas.agregar(G.crearBala(opts.tipo || 'bala',
+      ox, oy, Math.cos(ang) * vel, Math.sin(ang) * vel, {
+        dano: opts.dano || 1,
+        w: opts.w || 10, h: opts.h || 4,
+        color: opts.color || '#ffcf6a',
+        color2: '#fff4d0',
+        radioLuz: 18,
+        vida: opts.duracion || 2.2
+      }));
+    mundo.efectos.chispas(ox, oy, 3, '#ffdf9a');
+    mundo.efectos.destello(ox, oy, 16, '#ffcf6a', 0.07);
+  }
+
+  /* ---------------- Dibujo de una figura humana ----------------
+     Todos los enemigos comunes son personas, así que comparten el mismo armado y
+     cambian ropa, casco y arma. Ahorra código y, sobre todo, hace que se lean
+     como gente del mismo equipo. */
+  function dibujarHumano(ctx, e, cfg) {
+    var x = Math.round(e.x), y = Math.round(e.y), d = e.dir;
+    var enMov = Math.abs(e.vx) > 12;
+    var paso = Math.floor(e.t * (cfg.rapido ? 16 : 10)) % 4;
+    var off = enMov ? [0, 3, 0, -3][paso] : 0;
+    var bob = enMov ? [0, 1, 0, 0][paso] : 0;
+
+    ctx.save();
+    ctx.translate(x, y + bob);
+
+    var W = e.w, H = e.h;
+    var pantalon = cfg.pantalon || '#25303a';
+    var ropa = cfg.ropa || '#3d4a58';
+    var ropaClara = cfg.ropaClara || '#55677a';
+    var piel = cfg.piel || G.color.piel;
+
+    // Piernas
+    ctx.fillStyle = pantalon;
+    ctx.fillRect(3 + off, H - 10, 5, 10);
+    ctx.fillRect(W - 8 - off, H - 10, 5, 10);
+    ctx.fillStyle = '#12181f';
+    ctx.fillRect(2 + off, H - 3, 7, 3);
+    ctx.fillRect(W - 9 - off, H - 3, 7, 3);
+
+    // Torso
+    ctx.fillStyle = ropa;
+    ctx.fillRect(2, 8, W - 4, H - 17);
+    ctx.fillStyle = ropaClara;
+    ctx.fillRect(2, 8, W - 4, 3);
+    ctx.fillRect(d > 0 ? 2 : W - 4, 8, 2, H - 17);
+    if (cfg.chaleco) {
+      ctx.fillStyle = cfg.chaleco;
+      ctx.fillRect(3, 11, W - 6, 7);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(3, 17, W - 6, 1);
+    }
+    ctx.fillStyle = '#161c24';
+    ctx.fillRect(2, H - 11, W - 4, 2);
+
+    // Cabeza
+    ctx.fillStyle = piel;
+    ctx.fillRect(4, 2, W - 8, 7);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(d > 0 ? 4 : W - 6, 2, 2, 7);
+
+    // Casco o capucha
+    if (cfg.casco) {
+      ctx.fillStyle = cfg.casco;
+      ctx.fillRect(3, 0, W - 6, 5);
+      ctx.fillStyle = cfg.cascoClaro || 'rgba(255,255,255,0.18)';
+      ctx.fillRect(3, 0, W - 6, 2);
+      if (cfg.visera) {
+        ctx.fillStyle = cfg.visera;
+        ctx.fillRect(d > 0 ? 7 : 3, 4, W - 10, 3);
+      }
+    }
+    ctx.fillStyle = cfg.ojo || '#1a1a1a';
+    ctx.fillRect(d > 0 ? W - 8 : 5, 5, 3, 2);
+
+    // Arma y brazo que la sostiene
+    if (cfg.arma) cfg.arma(ctx, d, W, H);
+    ctx.fillStyle = piel;
+    ctx.fillRect(d > 0 ? W - 6 : 2, 12, 4, 4);
+
+    ctx.restore();
+  }
+
+  /* Config de ropa de cada tipo: la usa el sprite y también el cadáver. */
+  var ROPA = {
+    saqueador: { ropa: '#5a4432', ropaClara: '#7a5d44', pantalon: '#2e2620', casco: '#3c3128' },
+    guardia: { ropa: '#2f3d4d', ropaClara: '#455a6e', pantalon: '#1e2833', casco: '#3a4a5c' },
+    jetpack: { ropa: '#374a52', ropaClara: '#4f6a75', pantalon: '#222d33', casco: '#42565f' },
+    escopetero: { ropa: '#4a3a2c', ropaClara: '#6b5540', pantalon: '#2a231c', casco: '#57402a' },
+    francotirador: { ropa: '#33404a', ropaClara: '#4b5f6b', pantalon: '#212a31', casco: '#2c3840' },
+    pesado: { ropa: '#3b4652', ropaClara: '#586878', pantalon: '#242c34', casco: '#525f6d' }
+  };
+
   /* ---------------- Enemigos ---------------- */
 
-  /* Reptador: infectado de cuatro patas. Patrulla y, si te ve, corre. */
-  function reptador(col, fila) {
-    var e = baseEnemigo('reptador', col, fila, 16, 12, 2, 'sangre');
-    e.velPatrulla = 44;
-    e.velCarga = 118;
-    e.alerta = 0;
+  /* Saqueador: sin arma de fuego, va al cuerpo. Rápido y suicida. */
+  function saqueador(col, fila) {
+    var e = baseEnemigo('saqueador', col, fila, 18, 26, 2);
+    e.velPatrulla = 62;
+    e.velCarga = 200;
     e.puntos = 120;
 
     e.actualizar = function (dt, mundo) {
-      var ve = veAlJugador(e, mundo, 150);
-      if (ve) {
-        e.alerta = 1.6;
+      if (veAlJugador(e, mundo, 230)) {
+        e.alerta = 2.2;
         e.dir = haciaJugador(e, mundo);
       } else if (e.alerta > 0) e.alerta -= dt;
 
@@ -127,306 +231,295 @@ G.entidades = (function () {
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
       if (c.pared) e.dir *= -1;
-      var punta = e.dir > 0 ? e.x + e.w + 1 : e.x - 1;
-      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 2)) e.dir *= -1;
-      if (G.fisica.tocaPeligro(e, mundo.mapa, 3)) mundo.danarEnemigo(e, 99, 0, 0);
-      if (e.y > mundo.alto + 80) e.quitar = true;
-      // Va dejando rastro cuando está malherido
-      if (e.vida < e.vidaMax && Math.random() < 0.05) {
-        mundo.efectos.chorro(e.x + e.w / 2, e.y + e.h - 2, 0, e.sangre);
+      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
+      if (e.y > mundo.alto + 90) e.quitar = true;
+    };
+
+    e.dibujar = function (ctx) {
+      conFlash(e, ctx, function (ctx) {
+        dibujarHumano(ctx, e, {
+          rapido: e.alerta > 0,
+          ropa: ROPA.saqueador.ropa, ropaClara: ROPA.saqueador.ropaClara,
+          pantalon: ROPA.saqueador.pantalon,
+          casco: ROPA.saqueador.casco, cascoClaro: '#57483a',
+          ojo: e.alerta > 0 ? '#ff5a3c' : '#241a12',
+          arma: function (ctx, d, W) {
+            ctx.fillStyle = '#b9c2cc';
+            var bx = d > 0 ? W - 2 : -12;
+            ctx.fillRect(bx, 11, 14, 3);
+            ctx.fillStyle = '#e6edf4';
+            ctx.fillRect(bx, 11, 14, 1);
+            ctx.fillStyle = '#2a2018';
+            ctx.fillRect(d > 0 ? W - 4 : W - 6, 11, 4, 4);
+          }
+        });
+      });
+      barraVida(ctx, e);
+    };
+    return e;
+  }
+
+  /* Guardia: el enemigo estándar. Patrulla, te ve, se frena y dispara. */
+  function guardia(col, fila) {
+    var e = baseEnemigo('guardia', col, fila, 18, 27, 2);
+    e.recarga = 0.6 + (col % 5) * 0.18;
+    e.retroceso = 0;
+    e.puntos = 150;
+
+    e.actualizar = function (dt, mundo) {
+      var ve = veAlJugador(e, mundo, 300);
+      if (ve) { e.alerta = 1.8; e.dir = haciaJugador(e, mundo); }
+      else if (e.alerta > 0) e.alerta -= dt;
+
+      e.vx = e.alerta > 0 ? G.aprox(e.vx, 0, 700 * dt) : 68 * e.dir;
+      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
+      empujar(e, dt);
+      var c = G.fisica.mover(e, mundo.mapa, dt);
+      if (c.pared && e.alerta <= 0) e.dir *= -1;
+      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      if (c.suelo && e.alerta <= 0 && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+
+      if (e.alerta > 0) {
+        e.recarga -= dt;
+        if (e.recarga <= 0) {
+          e.recarga = 0.9;
+          e.retroceso = 0.12;
+          tirarleAlJugador(e, mundo, { despX: 12, vel: 340, desvio: (Math.random() - 0.5) * 0.1 });
+          G.audio.disparoEnemigo();
+        }
+      }
+      if (e.retroceso > 0) e.retroceso -= dt;
+      if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
+      if (e.y > mundo.alto + 90) e.quitar = true;
+    };
+
+    e.dibujar = function (ctx) {
+      conFlash(e, ctx, function (ctx) {
+        dibujarHumano(ctx, e, {
+          ropa: ROPA.guardia.ropa, ropaClara: ROPA.guardia.ropaClara,
+          pantalon: ROPA.guardia.pantalon, chaleco: '#22303d',
+          casco: ROPA.guardia.casco, cascoClaro: '#5b7186', visera: '#1b2530',
+          ojo: '#ff8a3a',
+          arma: function (ctx, d, W) {
+            var bx = d > 0 ? W - 3 : -11;
+            ctx.fillStyle = '#1f262e';
+            ctx.fillRect(bx, 12, 13, 4);
+            ctx.fillStyle = '#4a5764';
+            ctx.fillRect(d > 0 ? bx + 7 : bx, 12, 6, 2);
+            ctx.fillStyle = '#141a20';
+            ctx.fillRect(d > 0 ? W - 5 : W - 7, 15, 3, 4);
+          }
+        });
+        if (e.retroceso > 0.04) {
+          var fx = Math.round(e.x) + (e.dir > 0 ? e.w + 10 : -14);
+          ctx.fillStyle = 'rgba(255,220,150,0.9)';
+          ctx.fillRect(fx, Math.round(e.y) + 12, 6, 4);
+        }
+      });
+      barraVida(ctx, e);
+    };
+    return e;
+  }
+
+  /* Jetpack: guardia con mochila propulsora. Cubre el aire. */
+  function jetpack(col, fila) {
+    var e = baseEnemigo('jetpack', col, fila, 18, 26, 2);
+    e.baseY = e.y;
+    e.baseX = e.x;
+    e.rango = 90;
+    e.recarga = 1.0 + (col % 4) * 0.25;
+    e.puntos = 200;
+
+    e.actualizar = function (dt, mundo) {
+      e.x += e.dir * 52 * dt;
+      if (e.x < e.baseX - e.rango) { e.x = e.baseX - e.rango; e.dir = 1; }
+      if (e.x > e.baseX + e.rango) { e.x = e.baseX + e.rango; e.dir = -1; }
+      e.y = e.baseY + Math.sin(e.t * 1.9) * 16;
+      empujar(e, dt);
+
+      if (veAlJugador(e, mundo, 320)) {
+        e.alerta = 1.5;
+        e.recarga -= dt;
+        if (e.recarga <= 0) {
+          e.recarga = 1.3;
+          tirarleAlJugador(e, mundo, {
+            despX: 10, despY: e.h * 0.5, vel: 320, desvio: (Math.random() - 0.5) * 0.14
+          });
+          G.audio.disparoEnemigo();
+        }
+      } else if (e.alerta > 0) e.alerta -= dt;
+
+      if (Math.random() < 0.5) {
+        mundo.efectos.chispas(e.x + e.w / 2 - e.dir * 8, e.y + e.h - 2, 1, '#ffb45c');
       }
     };
 
     e.dibujar = function (ctx) {
       conFlash(e, ctx, function (ctx) {
         var x = Math.round(e.x), y = Math.round(e.y), d = e.dir;
-        var paso = Math.floor(e.t * (e.alerta > 0 ? 20 : 11)) % 4;
-        var off = [0, 2, 0, -2][paso];
-        // Patas
-        ctx.fillStyle = '#4a2230';
-        ctx.fillRect(x + 2 + off, y + 9, 3, 4);
-        ctx.fillRect(x + 11 - off, y + 9, 3, 4);
-        ctx.fillRect(x + 6 - off, y + 9, 3, 3);
-        // Cuerpo
-        ctx.fillStyle = '#7d3346';
-        ctx.fillRect(x + 1, y + 3, 14, 7);
-        ctx.fillStyle = '#9c465c';
-        ctx.fillRect(x + 2, y + 3, 12, 3);
-        // Placas dorsales
-        ctx.fillStyle = '#c2687f';
-        ctx.fillRect(x + 4, y + 1, 3, 3);
-        ctx.fillRect(x + 9, y + 1, 3, 3);
-        // Cabeza y fauces
-        var hx = d > 0 ? x + 12 : x - 1;
-        ctx.fillStyle = '#8f3c52';
-        ctx.fillRect(hx, y + 4, 5, 6);
-        ctx.fillStyle = '#f2f0e6';
-        ctx.fillRect(d > 0 ? hx + 3 : hx, y + 8, 2, 2);
-        // Ojo, rojo cuando está en carga
-        ctx.fillStyle = e.alerta > 0 ? '#ff3b3b' : '#ffd23f';
-        ctx.fillRect(d > 0 ? hx + 2 : hx + 1, y + 5, 2, 2);
+        ctx.fillStyle = '#39424e';
+        ctx.fillRect(x + (d > 0 ? -4 : e.w - 1), y + 8, 5, 11);
+        ctx.fillStyle = '#5b6a7c';
+        ctx.fillRect(x + (d > 0 ? -4 : e.w - 1), y + 8, 5, 3);
+        var llama = 4 + Math.abs(Math.sin(e.t * 22)) * 5;
+        ctx.fillStyle = '#ffb45c';
+        ctx.fillRect(x + (d > 0 ? -3 : e.w), y + 19, 3, llama);
+        ctx.fillStyle = '#fff0c0';
+        ctx.fillRect(x + (d > 0 ? -3 : e.w), y + 19, 3, llama * 0.4);
+        dibujarHumano(ctx, e, {
+          ropa: ROPA.jetpack.ropa, ropaClara: ROPA.jetpack.ropaClara,
+          pantalon: ROPA.jetpack.pantalon, chaleco: '#2b3b42',
+          casco: ROPA.jetpack.casco, cascoClaro: '#63808c', visera: '#0f1a1f',
+          ojo: '#4be0ff',
+          arma: function (ctx, d2, W) {
+            var bx = d2 > 0 ? W - 3 : -10;
+            ctx.fillStyle = '#1f262e';
+            ctx.fillRect(bx, 13, 12, 3);
+            ctx.fillStyle = '#4be0ff';
+            ctx.fillRect(d2 > 0 ? bx + 10 : bx, 13, 2, 2);
+          }
+        });
       });
       barraVida(ctx, e);
     };
     return e;
   }
 
-  /* Saltador: se impulsa hacia vos en arcos. Molesto de lejos, frágil de cerca. */
-  function saltador(col, fila) {
-    var e = baseEnemigo('saltador', col, fila, 14, 14, 2, 'sangre');
-    e.espera = 0.5 + (col % 5) * 0.16;
-    e.enSuelo = false;
-    e.puntos = 150;
+  /* Escopetero: aguanta hasta tenerte cerca y suelta un abanico. */
+  function escopetero(col, fila) {
+    var e = baseEnemigo('escopetero', col, fila, 19, 27, 2);
+    e.recarga = 1.2;
+    e.apuntando = 0;
+    e.puntos = 220;
 
     e.actualizar = function (dt, mundo) {
-      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
-      if (e.enSuelo) {
-        e.espera -= dt;
-        e.vx = G.aprox(e.vx, 0, 300 * dt);
-        if (e.espera <= 0) {
-          e.vy = -330;
-          var dist = Math.abs(mundo.jugador.x - e.x);
-          e.dir = haciaJugador(e, mundo);
-          e.vx = dist < 190 ? e.dir * 95 : 0;
-          e.espera = 0.9 + Math.random() * 0.5;
-          e.enSuelo = false;
+      var cerca = veAlJugador(e, mundo, 190);
+      if (cerca) { e.alerta = 1.6; e.dir = haciaJugador(e, mundo); }
+      else if (e.alerta > 0) e.alerta -= dt;
+
+      if (e.apuntando > 0) {
+        e.apuntando -= dt;
+        e.vx = 0;
+        if (e.apuntando <= 0) {
+          for (var i = -2; i <= 2; i++) {
+            tirarleAlJugador(e, mundo, {
+              despX: 13, vel: 300, desvio: i * 0.13, dano: 1,
+              w: 7, h: 4, color: '#ffb05a', duracion: 0.75
+            });
+          }
+          mundo.camara.sacudir(0.1, 2);
+          G.audio.escopetaEnemiga();
+          e.recarga = 1.7;
         }
+      } else {
+        e.vx = e.alerta > 0 ? 88 * e.dir : 52 * e.dir;
+        e.recarga -= dt;
+        if (e.recarga <= 0 && cerca) e.apuntando = 0.42;
       }
+
+      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
-      e.enSuelo = c.suelo;
-      if (c.pared) e.vx = 0;
-      if (G.fisica.tocaPeligro(e, mundo.mapa, 3)) mundo.danarEnemigo(e, 99, 0, 0);
-      if (e.y > mundo.alto + 80) e.quitar = true;
+      if (c.pared) e.dir *= -1;
+      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
+      if (e.y > mundo.alto + 90) e.quitar = true;
     };
 
     e.dibujar = function (ctx) {
       conFlash(e, ctx, function (ctx) {
-        var x = Math.round(e.x), y = Math.round(e.y);
-        var estirado = !e.enSuelo;
-        var alto = estirado ? 14 : 10;
-        var off = 14 - alto;
-        // Saco membranoso
-        ctx.fillStyle = '#3f6b34';
-        ctx.fillRect(x + 1, y + off, 12, alto);
-        ctx.fillStyle = '#598f47';
-        ctx.fillRect(x + 2, y + off + 1, 10, 4);
-        ctx.fillStyle = '#2a4a22';
-        ctx.fillRect(x + 1, y + 12, 12, 2);
-        // Venas
-        ctx.fillStyle = '#8fc46a';
-        ctx.fillRect(x + 4, y + off + 5, 1, alto - 7);
-        ctx.fillRect(x + 9, y + off + 4, 1, alto - 6);
-        // Ojos
-        ctx.fillStyle = '#ffe27a';
-        ctx.fillRect(x + 3, y + off + 3, 3, 3);
-        ctx.fillRect(x + 8, y + off + 3, 3, 3);
-        ctx.fillStyle = '#1a1208';
-        ctx.fillRect(x + 4, y + off + 4, 2, 2);
-        ctx.fillRect(x + 9, y + off + 4, 2, 2);
+        dibujarHumano(ctx, e, {
+          ropa: ROPA.escopetero.ropa, ropaClara: ROPA.escopetero.ropaClara,
+          pantalon: ROPA.escopetero.pantalon, chaleco: '#5c4326',
+          casco: ROPA.escopetero.casco, cascoClaro: '#7b5c3d',
+          ojo: e.apuntando > 0 ? '#ff3b3b' : '#241a12',
+          arma: function (ctx, d, W) {
+            var bx = d > 0 ? W - 4 : -14;
+            ctx.fillStyle = '#2b2119';
+            ctx.fillRect(bx, 12, 17, 4);
+            ctx.fillStyle = '#6b5a45';
+            ctx.fillRect(d > 0 ? bx : bx + 12, 12, 5, 4);
+            ctx.fillStyle = '#8d97a2';
+            ctx.fillRect(d > 0 ? bx + 12 : bx, 13, 5, 2);
+          }
+        });
+        if (e.apuntando > 0) {
+          ctx.fillStyle = 'rgba(255,90,60,' + (0.3 + 0.4 * Math.sin(e.t * 30)).toFixed(2) + ')';
+          ctx.fillRect(Math.round(e.x) + (e.dir > 0 ? e.w + 10 : -34), Math.round(e.y) + 12, 24, 2);
+        }
       });
       barraVida(ctx, e);
     };
     return e;
   }
 
-  /* Dron: máquina de la colonia. Patrulla en el aire y dispara al verte. */
-  function dron(col, fila) {
-    var e = baseEnemigo('dron', col, fila, 16, 12, 2, 'icor');
-    e.baseX = e.x; e.baseY = e.y;
-    e.rango = 56;
-    e.recarga = 1.1 + (col % 4) * 0.2;
-    e.puntos = 180;
-    e.hlice = 0;
-
-    e.actualizar = function (dt, mundo) {
-      e.x += e.dir * 34 * dt;
-      if (e.x < e.baseX - e.rango) { e.x = e.baseX - e.rango; e.dir = 1; }
-      if (e.x > e.baseX + e.rango) { e.x = e.baseX + e.rango; e.dir = -1; }
-      e.y = e.baseY + Math.sin(e.t * 1.7) * 12;
-      empujar(e, dt);
-
-      e.recarga -= dt;
-      if (e.recarga <= 0 && veAlJugador(e, mundo, 230)) {
-        e.recarga = 1.5;
-        var j = mundo.jugador;
-        var dx = (j.x + j.w / 2) - (e.x + e.w / 2);
-        var dy = (j.y + j.h / 2) - (e.y + e.h);
-        var largo = Math.max(1, Math.hypot(dx, dy));
-        mundo.balas.agregar(G.crearBala('energia',
-          e.x + e.w / 2, e.y + e.h, dx / largo * 210, dy / largo * 210, {
-            dano: 1, w: 8, h: 5, color: '#ff8a3a', color2: '#ffe0a0', radioLuz: 16, vida: 2.4
-          }));
-        mundo.efectos.chispas(e.x + e.w / 2, e.y + e.h, 3, '#ffb45c');
-        G.audio.impacto();
-      }
-    };
-
-    e.dibujar = function (ctx) {
-      conFlash(e, ctx, function (ctx) {
-        var x = Math.round(e.x), y = Math.round(e.y);
-        // Hélices
-        var an = Math.sin(e.t * 40) > 0 ? 7 : 3;
-        ctx.fillStyle = 'rgba(190,210,225,0.55)';
-        ctx.fillRect(x - 1, y, an, 1);
-        ctx.fillRect(x + 17 - an, y, an, 1);
-        // Brazos
-        ctx.fillStyle = '#43505f';
-        ctx.fillRect(x, y + 1, 16, 2);
-        // Chasis
-        ctx.fillStyle = '#5b6a7c';
-        ctx.fillRect(x + 3, y + 3, 10, 7);
-        ctx.fillStyle = '#78899c';
-        ctx.fillRect(x + 3, y + 3, 10, 2);
-        ctx.fillStyle = '#2e3743';
-        ctx.fillRect(x + 4, y + 9, 8, 3);
-        // Sensor
-        var vivo = 0.6 + 0.4 * Math.sin(e.t * 8);
-        ctx.fillStyle = 'rgba(255,90,50,' + vivo.toFixed(2) + ')';
-        ctx.fillRect(x + 6, y + 5, 4, 3);
-        ctx.fillStyle = '#ffd0b0';
-        ctx.fillRect(x + 7, y + 6, 1, 1);
-      });
-      barraVida(ctx, e);
-    };
-    return e;
-  }
-
-  /* Escupidor: pólipo fijo al suelo. Lanza ácido en arco, no se mueve. */
-  function escupidor(col, fila) {
-    var e = baseEnemigo('escupidor', col, fila, 14, 14, 3, 'sangre');
-    e.recarga = 0.8 + (col % 3) * 0.35;
-    e.puntos = 200;
-    e.abierto = 0;
-
-    e.actualizar = function (dt, mundo) {
-      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
-      G.fisica.mover(e, mundo.mapa, dt);
-      if (e.abierto > 0) e.abierto -= dt;
-      e.recarga -= dt;
-      if (e.recarga <= 0 && veAlJugador(e, mundo, 210)) {
-        e.recarga = 1.9;
-        e.abierto = 0.35;
-        var d = haciaJugador(e, mundo);
-        e.dir = d;
-        mundo.balas.agregar(G.crearBala('acido',
-          e.x + e.w / 2 + d * 6, e.y + 2, d * 155, -215, {
-            dano: 1, w: 7, h: 7, gravedad: 620,
-            color: '#9fd12a', color2: '#e6ff9a', radioLuz: 14, vida: 3
-          }));
-        G.audio.carne();
-      }
-    };
-
-    e.dibujar = function (ctx) {
-      conFlash(e, ctx, function (ctx) {
-        var x = Math.round(e.x), y = Math.round(e.y);
-        // Base carnosa
-        ctx.fillStyle = '#5c2a3a';
-        ctx.fillRect(x + 1, y + 8, 12, 6);
-        ctx.fillStyle = '#7a3a4c';
-        ctx.fillRect(x + 2, y + 6, 10, 4);
-        // Tallo
-        ctx.fillStyle = '#8f4759';
-        ctx.fillRect(x + 4, y + 3, 6, 6);
-        // Boca, se abre al disparar
-        var ab = e.abierto > 0 ? 4 : 2;
-        ctx.fillStyle = '#2a0d14';
-        ctx.fillRect(x + 5, y + 2, 4, ab);
-        ctx.fillStyle = e.abierto > 0 ? '#c8f24a' : '#a8d13a';
-        ctx.fillRect(x + 6, y + 2, 2, 1);
-        // Esporas
-        ctx.fillStyle = '#c2687f';
-        ctx.fillRect(x + 2, y + 4, 2, 2);
-        ctx.fillRect(x + 10, y + 5, 2, 2);
-      });
-      barraVida(ctx, e);
-    };
-    return e;
-  }
-
-  /* Centinela: guardián de las ruinas. Flota, tiene escudo y tira ráfagas.
-     El escudo se cae mientras dispara: ahí es cuando hay que castigarlo. */
-  function centinela(col, fila) {
-    var e = baseEnemigo('centinela', col, fila, 16, 18, 6, 'icor');
-    e.baseY = e.y;
-    e.escudo = true;
-    e.ciclo = 1.6 + (col % 4) * 0.3;
-    e.rafaga = 0;
-    e.entreTiros = 0;
-    e.puntos = 350;
+  /* Francotirador: no se mueve. Marca con el láser y después dispara fuerte. */
+  function francotirador(col, fila) {
+    var e = baseEnemigo('francotirador', col, fila, 18, 26, 2);
+    e.cargando = 0;
+    e.recarga = 1.4 + (col % 3) * 0.3;
+    e.puntos = 300;
     e.dano = 2;
 
     e.actualizar = function (dt, mundo) {
-      e.y = e.baseY + Math.sin(e.t * 1.1) * 10;
-      e.x += Math.sin(e.t * 0.6) * 14 * dt;
+      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
+      G.fisica.mover(e, mundo.mapa, dt);
 
-      if (e.rafaga > 0) {
-        e.escudo = false;
-        e.entreTiros -= dt;
-        if (e.entreTiros <= 0) {
-          e.rafaga--;
-          e.entreTiros = 0.16;
-          var j = mundo.jugador;
-          var dx = (j.x + j.w / 2) - (e.x + e.w / 2);
-          var dy = (j.y + j.h / 2) - (e.y + e.h / 2);
-          var l = Math.max(1, Math.hypot(dx, dy));
-          mundo.balas.agregar(G.crearBala('energia',
-            e.x + e.w / 2, e.y + e.h / 2, dx / l * 245, dy / l * 245, {
-              dano: 1, w: 10, h: 4, color: '#b07cff', color2: '#e9d6ff', radioLuz: 20, vida: 2.6
-            }));
-          G.audio.impacto();
+      var ve = veAlJugador(e, mundo, 460);
+      if (ve) { e.alerta = 1.4; e.dir = haciaJugador(e, mundo); }
+      else if (e.alerta > 0) e.alerta -= dt;
+
+      if (e.cargando > 0) {
+        e.cargando -= dt;
+        if (e.cargando <= 0) {
+          tirarleAlJugador(e, mundo, {
+            despX: 14, vel: 620, dano: 2, w: 16, h: 3,
+            color: '#ff5a5a', duracion: 1.4
+          });
+          mundo.camara.sacudir(0.08, 2);
+          G.audio.francotirador();
+          e.recarga = 2.1;
         }
       } else {
-        e.ciclo -= dt;
-        if (e.ciclo <= 0 && veAlJugador(e, mundo, 260)) {
-          e.rafaga = 3;
-          e.entreTiros = 0;
-          e.ciclo = 2.6;
-        } else if (e.ciclo <= 0) {
-          e.escudo = true;
-          e.ciclo = 1.2;
-        }
-        if (e.rafaga === 0 && e.ciclo > 0.6) e.escudo = true;
+        e.recarga -= dt;
+        if (e.recarga <= 0 && ve) e.cargando = 0.75;
       }
+      if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
     };
 
     e.dibujar = function (ctx) {
       conFlash(e, ctx, function (ctx) {
-        var x = Math.round(e.x), y = Math.round(e.y);
-        // Cuerpo: obelisco flotante
-        ctx.fillStyle = '#2e2547';
-        ctx.fillRect(x + 3, y + 2, 10, 14);
-        ctx.fillStyle = '#463a68';
-        ctx.fillRect(x + 4, y + 3, 8, 5);
-        ctx.fillStyle = '#1d1730';
-        ctx.fillRect(x + 5, y + 14, 6, 3);
-        // Anillos que giran
-        var an = Math.sin(e.t * 2) * 4;
-        ctx.fillStyle = '#7a5fb0';
-        ctx.fillRect(x + 2 + an, y + 6, 12 - an * 2, 2);
-        ctx.fillRect(x + 2 - an, y + 11, 12 + an * 2, 2);
-        // Ojo
-        var pu = 0.6 + 0.4 * Math.sin(e.t * 5);
-        ctx.fillStyle = 'rgba(176,124,255,' + pu.toFixed(2) + ')';
-        ctx.fillRect(x + 6, y + 8, 4, 4);
-        ctx.fillStyle = '#f0e6ff';
-        ctx.fillRect(x + 7, y + 9, 2, 2);
+        dibujarHumano(ctx, e, {
+          ropa: ROPA.francotirador.ropa, ropaClara: ROPA.francotirador.ropaClara,
+          pantalon: ROPA.francotirador.pantalon,
+          casco: ROPA.francotirador.casco, cascoClaro: '#485b66', visera: '#151d23',
+          ojo: '#ff3b3b',
+          arma: function (ctx, d, W) {
+            var bx = d > 0 ? W - 5 : -20;
+            ctx.fillStyle = '#1a2027';
+            ctx.fillRect(bx, 12, 24, 3);
+            ctx.fillStyle = '#39454f';
+            ctx.fillRect(d > 0 ? bx + 4 : bx + 16, 9, 6, 3);
+            ctx.fillStyle = '#8d97a2';
+            ctx.fillRect(d > 0 ? bx + 20 : bx, 12, 4, 2);
+          }
+        });
       });
-      // Escudo por encima de todo
-      if (e.escudo) {
-        var cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+      if (e.cargando > 0) {
+        var ox = e.x + e.w / 2 + e.dir * 18;
+        var oy = e.y + e.h * 0.42;
         ctx.save();
-        ctx.globalAlpha = 0.28 + 0.12 * Math.sin(e.t * 6);
-        ctx.strokeStyle = '#54e0ff';
-        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.35 + 0.35 * Math.sin(e.t * 26);
+        ctx.strokeStyle = '#ff3b3b';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(ox + e.dir * 460, oy);
         ctx.stroke();
-        ctx.globalAlpha = 0.10;
-        ctx.fillStyle = '#54e0ff';
-        ctx.fill();
         ctx.restore();
       }
       barraVida(ctx, e);
@@ -434,121 +527,107 @@ G.entidades = (function () {
     return e;
   }
 
-  /* Bruto: minero infectado, enorme. Lento, aguanta mucho y pega fuerte. */
-  function bruto(col, fila) {
-    var e = baseEnemigo('bruto', col, fila, 22, 26, 9, 'sangre');
-    e.y = fila * T + T - 26;
+  /* Pesado: ametralladora y avance lento. Cae de un tiro como todos, pero te
+     obliga a exponerte para conseguirlo. */
+  function pesado(col, fila) {
+    var e = baseEnemigo('pesado', col, fila, 22, 30, 2);
+    e.y = fila * T + T - 30;
     e.dano = 2;
-    e.puntos = 500;
-    e.carga = 0;
-    e.rugido = 0;
+    e.puntos = 350;
+    e.rafaga = 0;
+    e.entreTiros = 0;
+    e.recarga = 1.0;
 
     e.actualizar = function (dt, mundo) {
-      var ve = veAlJugador(e, mundo, 200);
-      if (ve && e.carga <= 0 && e.rugido <= 0) {
-        e.rugido = 0.6;
-        e.dir = haciaJugador(e, mundo);
-        G.audio.carne();
-      }
-      if (e.rugido > 0) {
-        e.rugido -= dt;
-        e.vx = 0;
-        if (e.rugido <= 0) e.carga = 1.8;
-      } else if (e.carga > 0) {
-        e.carga -= dt;
-        e.vx = e.dir * 150;
+      var ve = veAlJugador(e, mundo, 340);
+      if (ve) { e.alerta = 2; e.dir = haciaJugador(e, mundo); }
+      else if (e.alerta > 0) e.alerta -= dt;
+
+      if (e.rafaga > 0) {
+        e.vx = G.aprox(e.vx, 0, 900 * dt);
+        e.entreTiros -= dt;
+        if (e.entreTiros <= 0) {
+          e.rafaga--;
+          e.entreTiros = 0.1;
+          tirarleAlJugador(e, mundo, {
+            despX: 16, vel: 380, desvio: (Math.random() - 0.5) * 0.22,
+            w: 11, h: 4, color: '#ffd06a'
+          });
+          G.audio.disparoEnemigo();
+        }
       } else {
-        e.vx = e.dir * 34;
+        e.vx = e.alerta > 0 ? 42 * e.dir : 32 * e.dir;
+        e.recarga -= dt;
+        if (e.recarga <= 0 && ve) { e.rafaga = 7; e.entreTiros = 0; e.recarga = 2.2; }
       }
 
       e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
       empujar(e, dt);
       var c = G.fisica.mover(e, mundo.mapa, dt);
-      if (c.pared) {
-        if (e.carga > 0) {
-          // Se estrella: temblor y escombros
-          mundo.camara.sacudir(0.25, 5);
-          mundo.efectos.polvo(e.x + e.w / 2, e.y + e.h, 10);
-          e.carga = 0;
-        }
-        e.dir *= -1;
-      }
-      var punta = e.dir > 0 ? e.x + e.w + 1 : e.x - 1;
-      if (c.suelo && e.carga <= 0 && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 2)) e.dir *= -1;
-      if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
-      if (e.y > mundo.alto + 80) e.quitar = true;
-      if (e.vida < e.vidaMax * 0.5 && Math.random() < 0.08) {
-        mundo.efectos.chorro(e.x + e.w / 2, e.y + 10, (Math.random() - 0.5) * 2, e.sangre);
-      }
+      if (c.pared) e.dir *= -1;
+      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      if (c.suelo && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      if (G.fisica.tocaPeligro(e, mundo.mapa, 5)) mundo.danarEnemigo(e, 99, 0, 0);
+      if (e.y > mundo.alto + 90) e.quitar = true;
     };
 
     e.dibujar = function (ctx) {
       conFlash(e, ctx, function (ctx) {
-        var x = Math.round(e.x), y = Math.round(e.y), d = e.dir;
-        var paso = Math.floor(e.t * (e.carga > 0 ? 16 : 7)) % 4;
-        var off = [0, 2, 0, -2][paso];
-        // Piernas
-        ctx.fillStyle = '#3a2028';
-        ctx.fillRect(x + 3 + off, y + 19, 6, 7);
-        ctx.fillRect(x + 13 - off, y + 19, 6, 7);
-        // Torso deforme
-        ctx.fillStyle = '#6b2f3c';
-        ctx.fillRect(x + 1, y + 7, 20, 13);
-        ctx.fillStyle = '#8a3f4f';
-        ctx.fillRect(x + 2, y + 7, 18, 5);
-        // Restos del traje de minero
-        ctx.fillStyle = '#4b5262';
-        ctx.fillRect(x + 4, y + 12, 14, 4);
-        // Brazo grande del lado al que mira
-        ctx.fillStyle = '#7d3646';
-        ctx.fillRect(d > 0 ? x + 18 : x - 3, y + 9, 7, 12);
-        ctx.fillStyle = '#a04a5c';
-        ctx.fillRect(d > 0 ? x + 18 : x - 3, y + 9, 7, 3);
-        // Cabeza hundida entre los hombros
-        ctx.fillStyle = '#8f4757';
-        ctx.fillRect(x + 6, y + 1, 10, 7);
-        ctx.fillStyle = e.carga > 0 ? '#ff3b3b' : '#ffcf5a';
-        ctx.fillRect(d > 0 ? x + 12 : x + 6, y + 3, 3, 2);
-        // Mandíbula
-        ctx.fillStyle = '#f0ece0';
-        ctx.fillRect(x + 7, y + 6, 8, 2);
-        ctx.fillStyle = '#5c2432';
-        ctx.fillRect(x + 9, y + 6, 1, 2);
-        ctx.fillRect(x + 12, y + 6, 1, 2);
+        dibujarHumano(ctx, e, {
+          ropa: ROPA.pesado.ropa, ropaClara: ROPA.pesado.ropaClara,
+          pantalon: ROPA.pesado.pantalon, chaleco: '#4a5765',
+          casco: ROPA.pesado.casco, cascoClaro: '#748495', visera: '#12181e',
+          ojo: '#ff5a3c',
+          arma: function (ctx, d, W) {
+            var bx = d > 0 ? W - 4 : -18;
+            ctx.fillStyle = '#191f26';
+            ctx.fillRect(bx, 13, 22, 6);
+            ctx.fillStyle = '#3d4854';
+            ctx.fillRect(d > 0 ? bx + 10 : bx, 13, 12, 2);
+            ctx.fillStyle = '#8d97a2';
+            ctx.fillRect(d > 0 ? bx + 18 : bx, 14, 4, 3);
+            ctx.fillStyle = '#a8853a';
+            ctx.fillRect(d > 0 ? bx - 4 : bx + 18, 18, 6, 3);
+          }
+        });
+        if (e.rafaga > 0 && e.entreTiros > 0.06) {
+          var fx = Math.round(e.x) + (e.dir > 0 ? e.w + 14 : -20);
+          ctx.fillStyle = 'rgba(255,220,150,0.9)';
+          ctx.fillRect(fx, Math.round(e.y) + 14, 8, 4);
+        }
       });
       barraVida(ctx, e);
     };
     return e;
   }
 
-  /* Jefe: lo que despertaron abajo. Tres fases, cada una más rápida. */
+  /* El del fondo: lo único que no es humano. Tres fases. */
   function jefe(col, fila) {
-    var e = baseEnemigo('jefe', col, fila, 58, 54, 42, 'icor');
-    e.y = fila * T + T - 54;
+    var e = baseEnemigo('jefe', col, fila, 68, 64, 40, 'icor');
+    e.y = fila * T + T - 64;
     e.baseY = e.y;
     e.dano = 2;
-    e.puntos = 5000;
+    e.puntos = 6000;
     e.esJefe = true;
+    e.humano = false;
     e.fase = 1;
     e.accion = 'entrada';
     e.tAccion = 1.4;
     e.recarga = 1.2;
-    e.invulnerable = 1.4;
 
     function disparoRadial(mundo, n, vel, desfase) {
       for (var i = 0; i < n; i++) {
         var a = desfase + (Math.PI * 2 / n) * i;
         mundo.balas.agregar(G.crearBala('energia',
           e.x + e.w / 2, e.y + e.h / 2, Math.cos(a) * vel, Math.sin(a) * vel, {
-            dano: 1, w: 9, h: 5, color: '#ff5a3c', color2: '#ffd9a0', radioLuz: 20, vida: 3.2
+            dano: 1, w: 12, h: 6, color: '#ff5a3c', color2: '#ffd9a0', radioLuz: 24, vida: 3.2
           }));
       }
-      mundo.camara.sacudir(0.2, 4);
+      mundo.camara.sacudir(0.22, 5);
       G.audio.reventar();
     }
 
     e.actualizar = function (dt, mundo) {
-      if (e.invulnerable > 0) e.invulnerable -= dt;
       e.fase = e.vida > e.vidaMax * 0.66 ? 1 : (e.vida > e.vidaMax * 0.33 ? 2 : 3);
       var apuro = 1 + (e.fase - 1) * 0.45;
 
@@ -557,42 +636,37 @@ G.entidades = (function () {
         if (e.tAccion <= 0) { e.accion = 'perseguir'; e.tAccion = 2.6; }
       } else if (e.accion === 'perseguir') {
         e.dir = haciaJugador(e, mundo);
-        e.vx = G.aprox(e.vx, e.dir * 62 * apuro, 220 * dt);
-        e.y = e.baseY + Math.sin(e.t * 1.4) * 8;
+        e.vx = G.aprox(e.vx, e.dir * 92 * apuro, 340 * dt);
+        e.y = e.baseY + Math.sin(e.t * 1.4) * 12;
         e.recarga -= dt * apuro;
         if (e.recarga <= 0) {
           e.recarga = 1.1;
-          var j = mundo.jugador;
-          var dx = (j.x + j.w / 2) - (e.x + e.w / 2);
-          var dy = (j.y + j.h / 2) - (e.y + e.h / 2);
-          var l = Math.max(1, Math.hypot(dx, dy));
           for (var k = -1; k <= 1; k++) {
-            var ang = Math.atan2(dy, dx) + k * 0.22;
-            mundo.balas.agregar(G.crearBala('energia',
-              e.x + e.w / 2, e.y + e.h / 2, Math.cos(ang) * 230, Math.sin(ang) * 230, {
-                dano: 1, w: 10, h: 5, color: '#ff7a3c', color2: '#ffe0b0', radioLuz: 18, vida: 2.8
-              }));
+            tirarleAlJugador(e, mundo, {
+              tipo: 'energia', despX: 0, despY: e.h / 2, vel: 340,
+              desvio: k * 0.2, w: 13, h: 6, color: '#ff7a3c', duracion: 2.8
+            });
           }
           G.audio.impacto();
         }
         if (e.tAccion <= 0) { e.accion = 'radial'; e.tAccion = 1.0; e.vx = 0; }
       } else if (e.accion === 'radial') {
-        e.vx = G.aprox(e.vx, 0, 400 * dt);
+        e.vx = G.aprox(e.vx, 0, 600 * dt);
         if (e.tAccion <= 0) {
-          disparoRadial(mundo, 8 + e.fase * 3, 175, e.t);
+          disparoRadial(mundo, 8 + e.fase * 3, 260, e.t);
           e.accion = 'perseguir';
           e.tAccion = 2.4 / apuro;
         }
       }
 
-      e.vy = Math.min(e.vy + G.GRAVEDAD * 0.35 * dt, 240);
+      e.vy = Math.min(e.vy + G.GRAVEDAD * 0.35 * dt, 360);
       var c = G.fisica.mover(e, mundo.mapa, dt);
       if (c.suelo) { e.baseY = e.y; e.vy = 0; }
       if (c.pared) e.vx = 0;
 
       if (Math.random() < 0.12 * e.fase) {
-        mundo.efectos.chorro(e.x + e.w / 2 + (Math.random() - 0.5) * 30,
-                             e.y + 10 + Math.random() * 20, (Math.random() - 0.5) * 2, e.sangre);
+        mundo.efectos.chorro(e.x + e.w / 2 + (Math.random() - 0.5) * 44,
+                             e.y + 14 + Math.random() * 28, (Math.random() - 0.5) * 2, e.sangre);
       }
     };
 
@@ -600,59 +674,123 @@ G.entidades = (function () {
       conFlash(e, ctx, function (ctx) {
         var x = Math.round(e.x), y = Math.round(e.y);
         var pulso = 0.5 + 0.5 * Math.sin(e.t * 3);
-        // Tentáculos, primero para que salgan de atrás de la masa
-        ctx.fillStyle = '#12060a';
-        for (var i = 0; i < 7; i++) {
-          var tx = x + 2 + i * 8;
-          var largo = 8 + Math.sin(e.t * 3 + i) * 5;
-          ctx.fillRect(tx, y + 46, 5, largo);
-          ctx.fillStyle = '#2a0f16';
-          ctx.fillRect(tx + 1, y + 46, 2, largo * 0.6);
+        for (var i = 0; i < 8; i++) {
+          var tx = x + 3 + i * 8;
+          var largo = 10 + Math.sin(e.t * 3 + i) * 7;
           ctx.fillStyle = '#12060a';
+          ctx.fillRect(tx, y + 56, 6, largo);
+          ctx.fillStyle = '#2a0f16';
+          ctx.fillRect(tx + 1, y + 56, 2, largo * 0.6);
         }
-        // Silueta: casi negra, para despegarse de la roca rojiza del núcleo
         ctx.fillStyle = '#0e0509';
-        ctx.fillRect(x, y + 4, e.w, 46);
-        ctx.fillRect(x + 6, y, e.w - 12, 8);
-        // Carne
+        ctx.fillRect(x, y + 5, e.w, 55);
+        ctx.fillRect(x + 8, y, e.w - 16, 10);
         ctx.fillStyle = '#3d1420';
-        ctx.fillRect(x + 4, y + 8, e.w - 8, 38);
+        ctx.fillRect(x + 5, y + 10, e.w - 10, 46);
         ctx.fillStyle = '#5a1e2c';
-        ctx.fillRect(x + 8, y + 11, e.w - 16, 16);
-        // Costillas
+        ctx.fillRect(x + 11, y + 14, e.w - 22, 20);
         ctx.fillStyle = '#7d3040';
-        for (var k = 0; k < 4; k++) ctx.fillRect(x + 10 + k * 10, y + 30, 6, 3);
-        // Placas de piedra antigua incrustadas a los costados
+        for (var k = 0; k < 5; k++) ctx.fillRect(x + 13 + k * 11, y + 40, 8, 4);
         ctx.fillStyle = '#241d3a';
-        ctx.fillRect(x - 3, y + 14, 9, 24);
-        ctx.fillRect(x + e.w - 6, y + 14, 9, 24);
+        ctx.fillRect(x - 4, y + 18, 12, 32);
+        ctx.fillRect(x + e.w - 8, y + 18, 12, 32);
         ctx.fillStyle = '#8f6fd0';
-        ctx.fillRect(x - 2, y + 17, 6, 3);
-        ctx.fillRect(x + e.w - 5, y + 17, 6, 3);
-        ctx.fillRect(x - 2, y + 30, 6, 2);
-        ctx.fillRect(x + e.w - 5, y + 30, 6, 2);
-        // Núcleo expuesto: el punto que hay que mirar
-        var cx = x + e.w / 2, cy = y + 26;
+        ctx.fillRect(x - 2, y + 22, 8, 4);
+        ctx.fillRect(x + e.w - 6, y + 22, 8, 4);
+        ctx.fillRect(x - 2, y + 40, 8, 3);
+        ctx.fillRect(x + e.w - 6, y + 40, 8, 3);
+        var cx = x + e.w / 2, cy = y + 33;
         ctx.fillStyle = '#1a0508';
-        ctx.fillRect(cx - 12, cy - 12, 24, 24);
+        ctx.fillRect(cx - 16, cy - 16, 32, 32);
         ctx.fillStyle = 'rgba(255,80,50,' + (0.6 + pulso * 0.4).toFixed(2) + ')';
-        ctx.fillRect(cx - 9, cy - 9, 18, 18);
+        ctx.fillRect(cx - 12, cy - 12, 24, 24);
         ctx.fillStyle = '#ffd9a0';
-        ctx.fillRect(cx - 4, cy - 4, 8, 8);
+        ctx.fillRect(cx - 6, cy - 6, 12, 12);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx - 2, cy - 2, 4, 4);
-        // Ojos amarillos alrededor
+        ctx.fillRect(cx - 3, cy - 3, 6, 6);
         ctx.fillStyle = '#ffd23f';
-        ctx.fillRect(x + 9, y + 9, 4, 4);
-        ctx.fillRect(x + e.w - 13, y + 9, 4, 4);
-        ctx.fillRect(x + 13, y + 40, 4, 4);
-        ctx.fillRect(x + e.w - 17, y + 40, 4, 4);
-        ctx.fillStyle = '#3a1a05';
-        ctx.fillRect(x + 10, y + 10, 2, 2);
-        ctx.fillRect(x + e.w - 12, y + 10, 2, 2);
+        [[12, 12], [e.w - 18, 12], [17, 48], [e.w - 23, 48]].forEach(function (p) {
+          ctx.fillRect(x + p[0], y + p[1], 5, 5);
+        });
       });
-      // Luz del núcleo
-      G.luz(ctx, e.x + e.w / 2, e.y + 26, 80, '#ff5a3c', 0.45);
+      G.luz(ctx, e.x + e.w / 2, e.y + 33, 110, '#ff5a3c', 0.45);
+    };
+    return e;
+  }
+
+  /* ---------------- Cadáveres ----------------
+     No son enemigos ni obstáculos: vuelan, se frenan contra el piso y quedan
+     tirados con su charco. world.js limita cuántos hay a la vez. */
+  function cadaver(x, y, dir, vx, vy, cfg) {
+    var e = {
+      tipo: 'cadaver',
+      x: x, y: y, w: 22, h: 13,
+      vx: vx, vy: vy,
+      dir: dir,
+      cfg: cfg || {},
+      quieto: false,
+      t: 0,
+      rot: 0,
+      vrot: (Math.random() - 0.5) * 9,
+      cadaver: true,
+      activa: true,
+      viva: false,
+      quitar: false,
+      sangrando: 1.6
+    };
+
+    e.actualizar = function (dt, mundo) {
+      e.t += dt;
+      if (e.quieto) {
+        if (e.sangrando > 0) {
+          e.sangrando -= dt;
+          if (Math.random() < 0.22) {
+            mundo.efectos.chorro(e.x + e.w / 2, e.y + e.h - 2, (Math.random() - 0.5) * 1.2, 'sangre');
+          }
+        }
+        return;
+      }
+      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
+      e.rot += e.vrot * dt;
+      var c = G.fisica.mover(e, mundo.mapa, dt);
+      if (c.suelo) {
+        e.quieto = true;
+        e.rot = 0;
+        mundo.efectos.charco(e.x + e.w / 2, e.y + e.h, 11, 'sangre');
+        mundo.efectos.polvo(e.x + e.w / 2, e.y + e.h, 4);
+      }
+      if (Math.random() < 0.5) {
+        mundo.efectos.chorro(e.x + e.w / 2, e.y + e.h / 2, (Math.random() - 0.5) * 2, 'sangre');
+      }
+      if (e.y > mundo.alto + 60) e.quitar = true;
+    };
+
+    e.dibujar = function (ctx) {
+      var x = Math.round(e.x), y = Math.round(e.y);
+      var c = e.cfg;
+      ctx.save();
+      if (!e.quieto) {
+        ctx.translate(x + e.w / 2, y + e.h / 2);
+        ctx.rotate(e.rot);
+        ctx.translate(-e.w / 2, -e.h / 2);
+      } else {
+        ctx.translate(x, y);
+      }
+      // Boca abajo: torso, pierna doblada, cabeza y un brazo estirado
+      ctx.fillStyle = c.ropa || '#3d4a58';
+      ctx.fillRect(3, 5, 15, 8);
+      ctx.fillStyle = c.ropaClara || '#55677a';
+      ctx.fillRect(3, 5, 15, 2);
+      ctx.fillStyle = c.pantalon || '#25303a';
+      ctx.fillRect(e.dir > 0 ? 0 : 16, 7, 6, 6);
+      ctx.fillStyle = c.piel || G.color.piel;
+      ctx.fillRect(e.dir > 0 ? 17 : 0, 6, 5, 5);
+      ctx.fillRect(e.dir > 0 ? 12 : 5, 12, 6, 2);
+      if (c.casco) {
+        ctx.fillStyle = c.casco;
+        ctx.fillRect(e.dir > 0 ? 17 : 0, 5, 5, 3);
+      }
+      ctx.restore();
     };
     return e;
   }
@@ -667,141 +805,116 @@ G.entidades = (function () {
     return e;
   }
 
-  function flotar(e) { return Math.sin(e.t * 2.6) * 2; }
+  function flotar(e) { return Math.sin(e.t * 2.6) * 3; }
 
-  /* Esquirla de mineral: los puntos del juego. Cargan un poquito la adrenalina. */
   function esquirla(col, fila) {
-    var e = itemBase('esquirla', col, fila, 10, 10);
+    var e = itemBase('esquirla', col, fila, 14, 14);
     e.alTocar = function (mundo) {
       mundo.sumarEsquirla();
       mundo.sumarPuntos(50, e.x, e.y);
       mundo.jugador.cargarAdrenalina(3);
       G.audio.recoger();
-      mundo.efectos.chispas(e.x + 5, e.y + 5, 5, mundo.paleta.acento);
+      mundo.efectos.chispas(e.x + 7, e.y + 7, 5, mundo.paleta.acento);
       e.quitar = true;
     };
     e.dibujar = function (ctx) {
-      var x = Math.round(e.x) + 5, y = Math.round(e.y) + 5 + flotar(e);
+      var x = Math.round(e.x) + 7, y = Math.round(e.y) + 7 + flotar(e);
       var P = G.capaActual;
-      var giro = Math.abs(Math.cos(e.t * 3));
-      var an = 2 + giro * 4;
-      G.luz(ctx, x, y, 14, P.acento, 0.35);
+      var an = 3 + Math.abs(Math.cos(e.t * 3)) * 5;
+      G.luz(ctx, x, y, 20, P.acento, 0.35);
       ctx.fillStyle = P.acento;
       ctx.beginPath();
-      ctx.moveTo(x, y - 6);
+      ctx.moveTo(x, y - 9);
       ctx.lineTo(x + an, y);
-      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x, y + 9);
       ctx.lineTo(x - an, y);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.fillRect(x - 1, y - 3, 1, 5);
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(x - 1, y - 5, 2, 8);
     };
     return e;
   }
 
   function botiquin(col, fila) {
-    var e = itemBase('botiquin', col, fila, 14, 12);
+    var e = itemBase('botiquin', col, fila, 20, 17);
     e.alTocar = function (mundo) {
       mundo.jugador.curar(2);
       mundo.sumarPuntos(100, e.x, e.y);
       G.audio.botiquin();
-      mundo.efectos.texto(e.x + 7, e.y - 4, '+2 VIDA', '#4be08a');
+      mundo.efectos.texto(e.x + 10, e.y - 6, '+2 VIDA', '#4be08a');
       e.quitar = true;
     };
     e.dibujar = function (ctx) {
       var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
-      G.luz(ctx, x + 7, y + 6, 18, '#4be08a', 0.3);
+      G.luz(ctx, x + 10, y + 8, 24, '#4be08a', 0.3);
       ctx.fillStyle = '#d8dde5';
-      ctx.fillRect(x, y, 14, 12);
+      ctx.fillRect(x, y, 20, 17);
+      ctx.fillStyle = '#eef2f7';
+      ctx.fillRect(x, y, 20, 3);
       ctx.fillStyle = '#b3bac6';
-      ctx.fillRect(x, y + 9, 14, 3);
+      ctx.fillRect(x, y + 13, 20, 4);
       ctx.fillStyle = '#8d95a3';
-      ctx.fillRect(x + 5, y - 2, 4, 2);
+      ctx.fillRect(x + 7, y - 3, 6, 3);
       ctx.fillStyle = '#c62828';
-      ctx.fillRect(x + 6, y + 2, 2, 7);
-      ctx.fillRect(x + 3, y + 4, 8, 3);
+      ctx.fillRect(x + 8, y + 3, 4, 10);
+      ctx.fillRect(x + 4, y + 6, 12, 4);
     };
     return e;
   }
 
   function adrenalina(col, fila) {
-    var e = itemBase('adrenalina', col, fila, 10, 14);
+    var e = itemBase('adrenalina', col, fila, 14, 20);
     e.alTocar = function (mundo) {
       mundo.jugador.cargarAdrenalina(G.ADRENALINA_MAX);
       mundo.sumarPuntos(150, e.x, e.y);
       G.audio.ampolla();
-      mundo.efectos.texto(e.x + 5, e.y - 4, 'ADRENALINA', '#ffb03a');
+      mundo.efectos.texto(e.x + 7, e.y - 6, 'ADRENALINA', '#ffb03a');
       e.quitar = true;
     };
     e.dibujar = function (ctx) {
       var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
-      G.luz(ctx, x + 5, y + 7, 18, '#ffb03a', 0.35);
+      G.luz(ctx, x + 7, y + 10, 24, '#ffb03a', 0.35);
       ctx.fillStyle = '#cfd6e0';
-      ctx.fillRect(x + 2, y, 6, 12);
+      ctx.fillRect(x + 3, y, 8, 17);
       ctx.fillStyle = '#ffb03a';
-      ctx.fillRect(x + 3, y + 4, 4, 7);
+      ctx.fillRect(x + 4, y + 6, 6, 10);
       ctx.fillStyle = '#ffe0a8';
-      ctx.fillRect(x + 3, y + 4, 1, 7);
+      ctx.fillRect(x + 4, y + 6, 2, 10);
       ctx.fillStyle = '#8d95a3';
-      ctx.fillRect(x + 3, y - 2, 4, 2);
-      ctx.fillRect(x + 4, y + 12, 2, 2);
+      ctx.fillRect(x + 4, y - 3, 6, 3);
+      ctx.fillRect(x + 6, y + 17, 2, 3);
     };
     return e;
   }
 
   function celula(col, fila) {
-    var e = itemBase('celula', col, fila, 12, 12);
+    var e = itemBase('celula', col, fila, 18, 18);
     e.alTocar = function (mundo) {
       mundo.jugador.cargarEco(G.ECO_MAX);
       mundo.sumarPuntos(150, e.x, e.y);
       G.audio.ampolla();
-      mundo.efectos.texto(e.x + 6, e.y - 4, 'ECO', G.color.visor);
+      mundo.efectos.texto(e.x + 9, e.y - 6, 'ECO', G.color.visor);
       e.quitar = true;
     };
     e.dibujar = function (ctx) {
       var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
       var pulso = 0.5 + 0.5 * Math.sin(e.t * 6);
-      G.luz(ctx, x + 6, y + 6, 20, G.color.visor, 0.25 + pulso * 0.25);
+      G.luz(ctx, x + 9, y + 9, 26, G.color.visor, 0.25 + pulso * 0.25);
       ctx.fillStyle = '#2b3a45';
-      ctx.fillRect(x, y, 12, 12);
+      ctx.fillRect(x, y, 18, 18);
       ctx.fillStyle = '#4a6270';
-      ctx.fillRect(x, y, 12, 2);
+      ctx.fillRect(x, y, 18, 3);
       ctx.fillStyle = 'rgba(75,224,255,' + (0.55 + pulso * 0.45).toFixed(2) + ')';
-      ctx.fillRect(x + 3, y + 3, 6, 6);
+      ctx.fillRect(x + 4, y + 4, 10, 10);
       ctx.fillStyle = '#dff8ff';
-      ctx.fillRect(x + 5, y + 5, 2, 2);
-    };
-    return e;
-  }
-
-  function mejora(col, fila) {
-    var e = itemBase('mejora', col, fila, 14, 12);
-    e.alTocar = function (mundo) {
-      mundo.jugador.mejora = 18;
-      mundo.sumarPuntos(250, e.x, e.y);
-      G.audio.botiquin();
-      mundo.efectos.texto(e.x + 7, e.y - 4, 'TRIPLE', G.color.plasma);
-      e.quitar = true;
-    };
-    e.dibujar = function (ctx) {
-      var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
-      G.luz(ctx, x + 7, y + 6, 20, G.color.plasma, 0.3);
-      ctx.fillStyle = '#3a4452';
-      ctx.fillRect(x, y + 2, 14, 8);
-      ctx.fillStyle = '#5d6b7d';
-      ctx.fillRect(x, y + 2, 14, 2);
-      ctx.fillStyle = G.color.plasma;
-      ctx.fillRect(x + 10, y + 4, 4, 2);
-      ctx.fillRect(x + 2, y + 5, 6, 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x + 12, y + 4, 2, 2);
+      ctx.fillRect(x + 7, y + 7, 4, 4);
     };
     return e;
   }
 
   function vida(col, fila) {
-    var e = itemBase('vida', col, fila, 14, 14);
+    var e = itemBase('vida', col, fila, 20, 20);
     e.alTocar = function (mundo) {
       mundo.sumarVida();
       G.audio.botiquin();
@@ -810,14 +923,88 @@ G.entidades = (function () {
     e.dibujar = function (ctx) {
       var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
       var pulso = 0.6 + 0.4 * Math.sin(e.t * 5);
-      G.luz(ctx, x + 7, y + 7, 22, '#4be08a', 0.3 * pulso);
+      G.luz(ctx, x + 10, y + 10, 30, '#4be08a', 0.3 * pulso);
       ctx.fillStyle = '#1d3a2c';
-      ctx.fillRect(x, y, 14, 14);
+      ctx.fillRect(x, y, 20, 20);
       ctx.fillStyle = '#4be08a';
-      ctx.fillRect(x + 5, y + 2, 4, 10);
-      ctx.fillRect(x + 2, y + 5, 10, 4);
+      ctx.fillRect(x + 7, y + 3, 6, 14);
+      ctx.fillRect(x + 3, y + 7, 14, 6);
       ctx.fillStyle = '#d8ffe8';
-      ctx.fillRect(x + 6, y + 3, 2, 8);
+      ctx.fillRect(x + 8, y + 4, 2, 12);
+    };
+    return e;
+  }
+
+  /* Armas tiradas: reemplazan el arma activa y traen munición contada. */
+  function armaSuelta(tipo, col, fila) {
+    var e = itemBase(tipo, col, fila, 28, 14);
+    var def = G.armas.obtener(tipo);
+    e.alTocar = function (mundo) {
+      mundo.jugador.tomarArma(tipo);
+      mundo.sumarPuntos(120, e.x, e.y);
+      G.audio.recogerArma();
+      mundo.efectos.texto(e.x + 14, e.y - 6, def.nombre.toUpperCase(), def.color);
+      e.quitar = true;
+    };
+    e.dibujar = function (ctx) {
+      var x = Math.round(e.x), y = Math.round(e.y) + flotar(e);
+      G.luz(ctx, x + 14, y + 7, 28, def.color, 0.3);
+      G.armas.dibujarIcono(ctx, tipo, x, y);
+    };
+    return e;
+  }
+
+  /* Baliza: punto de control. Se enciende al pasar y ahí reaparecés. */
+  function baliza(col, fila) {
+    var e = base('baliza', col, fila, 16, 30);
+    e.y = fila * T + T - 30;
+    e.encendida = false;
+    e.tEncendido = 0;
+    e.esBaliza = true;
+
+    e.actualizar = function (dt, mundo) {
+      if (e.encendida) { e.tEncendido += dt; return; }
+      if (mundo.jugador.muerto) return;
+      if (Math.abs((mundo.jugador.x + mundo.jugador.w / 2) - (e.x + e.w / 2)) < 28 &&
+          Math.abs(mundo.jugador.y - e.y) < 56) {
+        e.encendida = true;
+        mundo.fijarControl(e.colIni, e.filaIni);
+        mundo.efectos.texto(e.x + 8, e.y - 12, 'CONTROL', '#4be08a');
+        mundo.efectos.destello(e.x + 8, e.y + 8, 60, '#4be08a', 0.3);
+        G.audio.control();
+      }
+    };
+
+    e.dibujar = function (ctx) {
+      var x = Math.round(e.x), y = Math.round(e.y);
+      ctx.fillStyle = '#2c3742';
+      ctx.fillRect(x + 2, y + 12, 3, 18);
+      ctx.fillRect(x + 11, y + 12, 3, 18);
+      ctx.fillRect(x + 1, y + 27, 14, 3);
+      ctx.fillStyle = '#3f4c59';
+      ctx.fillRect(x, y + 4, 16, 10);
+      ctx.fillStyle = '#5c6b7a';
+      ctx.fillRect(x, y + 4, 16, 2);
+      if (e.encendida) {
+        var pulso = 0.55 + 0.45 * Math.sin(e.tEncendido * 6);
+        ctx.fillStyle = 'rgba(75,224,138,' + pulso.toFixed(2) + ')';
+        ctx.fillRect(x + 3, y + 7, 10, 5);
+        G.luz(ctx, x + 8, y + 9, 40, '#4be08a', 0.25 + pulso * 0.3);
+        ctx.save();
+        ctx.globalAlpha = 0.10 + 0.06 * pulso;
+        ctx.fillStyle = '#4be08a';
+        ctx.beginPath();
+        ctx.moveTo(x + 4, y + 6);
+        ctx.lineTo(x - 8, y - 60);
+        ctx.lineTo(x + 24, y - 60);
+        ctx.lineTo(x + 12, y + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#6b3a3a';
+        ctx.fillRect(x + 3, y + 7, 10, 5);
+      }
     };
     return e;
   }
@@ -830,22 +1017,21 @@ G.entidades = (function () {
     ctx.fillStyle = alerta ? '#7a4a2a' : P.metal;
     ctx.fillRect(x, y, e.w, e.h);
     ctx.fillStyle = alerta ? '#c98a4a' : P.metalTop;
-    ctx.fillRect(x, y, e.w, 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(x, y + e.h - 2, e.w, 2);
+    ctx.fillRect(x, y, e.w, 3);
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    ctx.fillRect(x, y + e.h - 3, e.w, 3);
     ctx.fillStyle = P.metalOsc;
-    for (var i = 4; i < e.w - 2; i += 9) ctx.fillRect(x + i, y + 3, 3, 2);
-    // Luces de borde
+    for (var i = 5; i < e.w - 4; i += 12) ctx.fillRect(x + i, y + 4, 4, 3);
     ctx.fillStyle = alerta ? '#ff8a3a' : P.acento;
-    ctx.fillRect(x + 1, y + e.h - 3, 2, 1);
-    ctx.fillRect(x + e.w - 3, y + e.h - 3, 2, 1);
+    ctx.fillRect(x + 2, y + e.h - 4, 3, 2);
+    ctx.fillRect(x + e.w - 5, y + e.h - 4, 3, 2);
   }
 
   function plataformaH(col, fila) {
-    var e = base('plataformaH', col, fila, 38, 9);
+    var e = base('plataformaH', col, fila, 56, 13);
     e.plataforma = true;
-    e.x = col * T; e.y = fila * T + 4;
-    e.baseX = e.x; e.rango = 6 * T; e.dir = 1; e.vel = 48;
+    e.x = col * T; e.y = fila * T + 6;
+    e.baseX = e.x; e.rango = 6 * T; e.dir = 1; e.vel = 72;
     e.actualizar = function (dt) {
       var antes = e.x;
       e.x += e.vel * e.dir * dt;
@@ -858,10 +1044,10 @@ G.entidades = (function () {
   }
 
   function plataformaV(col, fila) {
-    var e = base('plataformaV', col, fila, 38, 9);
+    var e = base('plataformaV', col, fila, 56, 13);
     e.plataforma = true;
-    e.x = col * T; e.y = fila * T + 4;
-    e.baseY = e.y; e.rango = 5 * T; e.dir = 1; e.vel = 40;
+    e.x = col * T; e.y = fila * T + 6;
+    e.baseY = e.y; e.rango = 4 * T; e.dir = 1; e.vel = 60;
     e.actualizar = function (dt) {
       var antes = e.y;
       e.y += e.vel * e.dir * dt;
@@ -874,16 +1060,16 @@ G.entidades = (function () {
   }
 
   function plataformaCae(col, fila) {
-    var e = base('plataformaCae', col, fila, 38, 9);
+    var e = base('plataformaCae', col, fila, 56, 13);
     e.plataforma = true;
-    e.x = col * T; e.y = fila * T + 4;
+    e.x = col * T; e.y = fila * T + 6;
     e.baseY = e.y;
     e.temblor = -1;
     e.cayendo = false;
     e.reaparecer = -1;
 
     e.pisada = function () {
-      if (e.temblor < 0 && !e.cayendo) e.temblor = 0.5;
+      if (e.temblor < 0 && !e.cayendo) e.temblor = 0.55;
     };
 
     e.actualizar = function (dt, mundo) {
@@ -894,14 +1080,14 @@ G.entidades = (function () {
           e.y = e.baseY; e.vy = 0; e.cayendo = false; e.temblor = -1; e.oculta = false;
         }
       } else if (e.cayendo) {
-        e.vy = Math.min(e.vy + G.GRAVEDAD * 0.65 * dt, 460);
+        e.vy = Math.min(e.vy + G.GRAVEDAD * 0.65 * dt, 700);
         e.y += e.vy * dt;
-        if (e.y > mundo.alto + 40) { e.oculta = true; e.reaparecer = 1.8; }
+        if (e.y > mundo.alto + 60) { e.oculta = true; e.reaparecer = 1.8; }
       } else if (e.temblor >= 0) {
         e.temblor -= dt;
         if (e.temblor <= 0) {
           e.cayendo = true; e.vy = 0;
-          if (mundo) mundo.efectos.polvo(e.x + e.w / 2, e.y + e.h, 6);
+          if (mundo) mundo.efectos.polvo(e.x + e.w / 2, e.y + e.h, 7);
         }
       }
       e.dx = 0; e.dy = e.y - antes;
@@ -910,7 +1096,7 @@ G.entidades = (function () {
     e.dibujar = function (ctx) {
       if (e.oculta) return;
       var alerta = e.temblor > 0 && !e.cayendo;
-      var tiembla = alerta ? Math.round(Math.sin(e.t * 70) * 1.5) : 0;
+      var tiembla = alerta ? Math.round(Math.sin(e.t * 70) * 2) : 0;
       ctx.save();
       ctx.translate(tiembla, 0);
       dibujoPlataforma(ctx, e, alerta);
@@ -921,64 +1107,61 @@ G.entidades = (function () {
 
   /* ---------------- Salida ---------------- */
 
-  /* Compuerta de ascensor: se abre cuando el jugador llega. */
   function salida(col, fila) {
-    var e = base('salida', col, fila, 26, 3 * T);
+    var e = base('salida', col, fila, 40, 3 * T);
     e.esMeta = true;
-    e.x = col * T - 5;
+    e.x = col * T - 8;
     e.y = (fila - 2) * T;
     e.abierta = 0;
     e.actualizar = function (dt, mundo) {
-      var cerca = Math.abs((mundo.jugador.x + 6) - (e.x + e.w / 2)) < 90;
+      var cerca = Math.abs((mundo.jugador.x + 9) - (e.x + e.w / 2)) < 120;
       e.abierta = G.clamp(e.abierta + (cerca ? dt * 1.8 : -dt * 2), 0, 1);
     };
     e.dibujar = function (ctx) {
       var x = Math.round(e.x), y = Math.round(e.y), h = e.h, w = e.w;
       var P = G.capaActual;
-      // Marco
       ctx.fillStyle = P.metalOsc;
-      ctx.fillRect(x - 3, y - 3, w + 6, h + 3);
+      ctx.fillRect(x - 5, y - 5, w + 10, h + 5);
       ctx.fillStyle = P.metal;
-      ctx.fillRect(x - 3, y - 3, w + 6, 4);
-      // Hueco iluminado
+      ctx.fillRect(x - 5, y - 5, w + 10, 6);
       ctx.fillStyle = '#07131a';
       ctx.fillRect(x, y, w, h);
       var luz = 0.25 + e.abierta * 0.75;
-      G.luz(ctx, x + w / 2, y + h / 2, 40 + e.abierta * 30, P.acento, luz * 0.7);
-      // Puertas que se abren hacia los costados
-      var desp = Math.round(e.abierta * (w / 2 - 1));
+      G.luz(ctx, x + w / 2, y + h / 2, 60 + e.abierta * 40, P.acento, luz * 0.7);
+      var desp = Math.round(e.abierta * (w / 2 - 2));
       ctx.fillStyle = P.metal;
       ctx.fillRect(x - desp, y, w / 2, h);
       ctx.fillRect(x + w / 2 + desp, y, w / 2, h);
       ctx.fillStyle = P.metalTop;
-      ctx.fillRect(x - desp, y, w / 2, 2);
-      ctx.fillRect(x + w / 2 + desp, y, w / 2, 2);
+      ctx.fillRect(x - desp, y, w / 2, 3);
+      ctx.fillRect(x + w / 2 + desp, y, w / 2, 3);
       ctx.fillStyle = P.metalOsc;
-      ctx.fillRect(x + w / 2 - 2 - desp, y, 2, h);
-      ctx.fillRect(x + w / 2 + desp, y, 2, h);
-      // Cartel
+      ctx.fillRect(x + w / 2 - 3 - desp, y, 3, h);
+      ctx.fillRect(x + w / 2 + desp, y, 3, h);
       ctx.fillStyle = e.abierta > 0.5 ? '#4be08a' : '#d24a4a';
-      ctx.fillRect(x + w / 2 - 5, y - 8, 10, 4);
-      G.texto(ctx, 'SALIDA', x + w / 2, y - 18,
-              { size: 8, align: 'center', color: e.abierta > 0.5 ? '#4be08a' : '#8d95a3' });
+      ctx.fillRect(x + w / 2 - 7, y - 12, 14, 5);
+      G.texto(ctx, 'SALIDA', x + w / 2, y - 26,
+              { size: 10, align: 'center', color: e.abierta > 0.5 ? '#4be08a' : '#8d95a3' });
     };
     return e;
   }
 
   var fabricas = {
-    reptador: reptador,
-    saltador: saltador,
-    dron: dron,
-    escupidor: escupidor,
-    centinela: centinela,
-    bruto: bruto,
+    saqueador: saqueador,
+    guardia: guardia,
+    jetpack: jetpack,
+    escopetero: escopetero,
+    francotirador: francotirador,
+    pesado: pesado,
     jefe: jefe,
     esquirla: esquirla,
     botiquin: botiquin,
     adrenalina: adrenalina,
     celula: celula,
-    mejora: mejora,
     vida: vida,
+    escopeta: function (c, f) { return armaSuelta('escopeta', c, f); },
+    ametralladora: function (c, f) { return armaSuelta('ametralladora', c, f); },
+    baliza: baliza,
     plataformaH: plataformaH,
     plataformaV: plataformaV,
     plataformaCae: plataformaCae,
@@ -990,6 +1173,8 @@ G.entidades = (function () {
       var f = fabricas[tipo];
       return f ? f(col, fila) : null;
     },
+    crearCadaver: cadaver,
+    ropaDe: function (tipo) { return ROPA[tipo] || ROPA.guardia; },
     tipos: Object.keys(fabricas)
   };
 })();

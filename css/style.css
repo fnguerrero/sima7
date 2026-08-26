@@ -35,8 +35,8 @@ body::before {
 
 #pantalla {
   display: block;
-  /* Escala el canvas manteniendo la resolución interna de 640x352 */
-  width: min(96vw, calc(90vh * 640 / 352));
+  /* Escala el canvas manteniendo la resolución interna de 600x336 */
+  width: min(96vw, calc(88vh * 600 / 336));
   height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -56,4 +56,137 @@ body::before {
 #ayuda b {
   color: #ffcf5a;
   font-weight: 600;
+}
+
+#ayuda .alt {
+  display: inline-block;
+  margin-top: 4px;
+  opacity: 0.75;
+  font-size: 11px;
+}
+
+/* ============================================================
+   Controles táctiles — solo aparecen en dispositivos con dedo.
+   Van encima del canvas, en posición fija, para que el juego no
+   tenga que saber nada de layout.
+   ============================================================ */
+
+#controles { display: none; }
+
+body.tactil {
+  gap: 0;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.tactil #ayuda { display: none; }
+
+body.tactil #marco {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+body.tactil #pantalla {
+  width: 100vw;
+  max-height: 100vh;
+  object-fit: contain;
+}
+
+body.tactil #controles {
+  display: block;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#controles .grupo { position: absolute; pointer-events: none; }
+
+#controles .izq {
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 168px;
+  height: 168px;
+}
+
+#controles .der {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 196px;
+  height: 176px;
+}
+
+#controles .sup {
+  right: max(12px, env(safe-area-inset-right));
+  top: max(10px, env(safe-area-inset-top));
+}
+
+.tb {
+  position: absolute;
+  pointer-events: auto;
+  border: 1px solid rgba(180, 210, 230, 0.35);
+  background: rgba(10, 18, 26, 0.42);
+  color: #cfe0ec;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  transition: background 60ms linear, transform 60ms linear;
+}
+
+.tb.apretado {
+  background: rgba(90, 190, 210, 0.45);
+  border-color: rgba(220, 245, 255, 0.8);
+  transform: scale(0.94);
+}
+
+.tb.grande { width: 78px; height: 78px; font-size: 13px; }
+.tb.chico { width: 48px; height: 48px; font-size: 11px; }
+
+/* Cruceta */
+.p-izq    { left: 0;    bottom: 56px; }
+.p-der    { left: 112px; bottom: 56px; }
+.p-arriba { left: 56px; bottom: 112px; }
+.p-abajo  { left: 56px; bottom: 0; }
+
+/* Acciones */
+.p-salto   { right: 0;    bottom: 6px;  background: rgba(30, 80, 60, 0.45); }
+.p-disparo { right: 84px; bottom: 34px; background: rgba(90, 40, 30, 0.45); }
+.p-lento   { right: 6px;  bottom: 92px; }
+.p-turbo   { right: 60px; bottom: 108px; }
+.p-correr  { right: 118px; bottom: 118px; }
+
+/* Superiores */
+.p-ok    { position: relative; width: 52px; height: 40px; font-size: 12px; }
+.p-pausa { position: relative; width: 44px; height: 40px; margin-left: 8px; display: inline-flex; }
+#controles .sup { display: flex; }
+
+/* Aviso de rotar: solo en vertical */
+#rotar { display: none; }
+
+@media (orientation: portrait) {
+  body.tactil #rotar {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 6, 9, 0.92);
+    color: #ffcf5a;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-align: center;
+  }
 }

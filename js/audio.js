@@ -146,6 +146,21 @@ G.audio = (function () {
     salto2:   function () { tono(320, 620, 0.10, 'triangle', 0.08); golpe(0.08, 1600, 500, 0.06); },
     aterrizar:function () { golpe(0.09, 700, 120, 0.09); },
     disparo:  function () { tono(760, 190, 0.07, 'square', 0.06); golpe(0.06, 3200, 700, 0.09, 'bandpass'); },
+    escopeta: function () {
+      golpe(0.22, 2400, 160, 0.22);
+      tono(180, 60, 0.18, 'sawtooth', 0.09);
+    },
+    ametralladora: function () {
+      tono(620, 240, 0.05, 'square', 0.05);
+      golpe(0.05, 2800, 900, 0.08, 'bandpass');
+    },
+    sinMunicion: function () { tono(320, 200, 0.05, 'square', 0.05); golpe(0.05, 5000, 2000, 0.05, 'highpass'); },
+    recogerArma: function () { melodia([[392, 0.07], [587, 0.07], [784, 0.14]], 'square', 0.08); },
+    control:  function () { melodia([[523, 0.09], [698, 0.09], [880, 0.22]], 'triangle', 0.10); },
+    zonaLimpia: function () { melodia([[660, 0.08], [880, 0.16]], 'sine', 0.07); },
+    disparoEnemigo: function () { tono(430, 160, 0.06, 'square', 0.045); golpe(0.06, 2200, 600, 0.06, 'bandpass'); },
+    escopetaEnemiga: function () { golpe(0.18, 1900, 150, 0.15); tono(150, 55, 0.15, 'sawtooth', 0.07); },
+    francotirador: function () { tono(900, 120, 0.12, 'square', 0.08); golpe(0.16, 3600, 300, 0.14); },
     cargaLista:function(){ tono(880, 1320, 0.09, 'triangle', 0.07); },
     disparoCargado: function () {
       tono(320, 70, 0.26, 'sawtooth', 0.11);

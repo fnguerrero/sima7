@@ -124,15 +124,26 @@ G.crearBalas = function (mundo) {
           if (b.deJugador) {
             for (var k = 0; k < mundo.entidades.length; k++) {
               var e = mundo.entidades[k];
-              if (!e.enemigo || e.quitar || !e.viva) continue;
+              if (e.quitar) continue;
               if (b.golpeados.indexOf(e) >= 0) continue;
+
+              // Los cuerpos en el piso siguen salpicando: no frenan la bala
+              if (e.cadaver) {
+                if (!G.solapan(r, e)) continue;
+                b.golpeados.push(e);
+                mundo.efectos.salpicar(b.x, b.y, b.vx, b.vy, 1.1, 'sangre');
+                G.audio.carne();
+                continue;
+              }
+
+              if (!e.enemigo || !e.viva) continue;
               if (!G.solapan(r, e)) continue;
               b.golpeados.push(e);
               mundo.danarEnemigo(e, b.dano, b.vx, b.vy, b);
               if (!b.atraviesa) { b.quitar = true; break; }
             }
           } else if (!j.muerto && G.solapan(r, j.rect())) {
-            if (j.recibirDano(1, b.vx > 0 ? 1 : -1, mundo)) {
+            if (j.recibirDano(b.dano || 1, b.vx > 0 ? 1 : -1, mundo)) {
               // el jugador maneja su propia muerte
             }
             mundo.efectos.chispas(b.x, b.y, 6, b.color);

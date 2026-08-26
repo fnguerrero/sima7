@@ -19,6 +19,9 @@
   canvas.setAttribute('tabindex', '0');
   canvas.addEventListener('pointerdown', function () { canvas.focus(); });
 
+  // Controles en pantalla, solo si el dispositivo es táctil
+  G.tactil.iniciar();
+
   G.motor.iniciar(canvas);
 
   // Expuesto para poder verificar el juego desde la consola

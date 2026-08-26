@@ -87,7 +87,8 @@ G.validador = (function () {
   }
 
   var CHARS_ENEMIGO = ['1', '2', '3', '4', '5', '6', '9'];
-  var CHARS_ITEM = ['o', 'h', 'a', 'e', 'u', 'v'];
+  var CHARS_ITEM = ['o', 'h', 'a', 'e', 'g', 'r', 'v'];
+  var CHARS_VOLADOR = ['3'];   // los únicos que no necesitan piso debajo
 
   function validarNivel(nivel) {
     var errores = [];
@@ -168,7 +169,7 @@ G.validador = (function () {
         if (G.tiles.esSolido(charEn(mapa, p.col, p.fila))) {
           avisos.push('"' + ch + '" dentro de un sólido en ' + p.col + ',' + p.fila);
         }
-        if (CHARS_ENEMIGO.indexOf(ch) >= 0 && ch !== '3' && ch !== '5' && ch !== '9') {
+        if (CHARS_ENEMIGO.indexOf(ch) >= 0 && CHARS_VOLADOR.indexOf(ch) < 0) {
           // Los que caminan necesitan piso; los voladores no
           if (!G.tiles.esSolido(debajo) && !G.tiles.esOneway(debajo)) {
             var hayPisoAbajo = false;
@@ -184,6 +185,13 @@ G.validador = (function () {
     // --- Avisos de contenido ---
     var esquirlas = buscarChar(mapa, ancho, 'o').length;
     if (esquirlas === 0) avisos.push('el nivel no tiene esquirlas');
+
+    // Los puntos de control son lo que evita rehacer todo el nivel al morir
+    var balizas = buscarChar(mapa, ancho, 'K');
+    if (balizas.length === 0) avisos.push('el nivel no tiene ningún punto de control');
+    balizas.forEach(function (b) {
+      if (!apoyoBajo(apoyos, b.col, b.fila)) avisos.push('baliza sin piso en ' + b.col + ',' + b.fila);
+    });
 
     var enemigos = 0;
     CHARS_ENEMIGO.forEach(function (ch) { enemigos += buscarChar(mapa, ancho, ch).length; });
