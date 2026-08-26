@@ -972,7 +972,7 @@
     var p = m.efectos.particulas;
     afirmar(p.filter(function (x) { return x.tipo === 'onda'; }).length >= 2, 'faltan las ondas');
     afirmar(p.filter(function (x) { return x.tipo === 'fuego'; }).length >= 5, 'falta el fuego');
-    afirmar(m.camara.fuerza >= 10, 'la sacudida quedó floja');
+    afirmar(m.camara.fuerza > 0, 'la explosión no sacudió nada');
   });
 
   test('los efectos importantes sobreviven al desborde de partículas', function () {
@@ -1134,17 +1134,17 @@
   // =====================================================================
   grupo('Progreso');
 
-  test('la cámara lenta pide una racha y tiene enfriamiento', function () {
+  test('matar al último de la zona no frena el juego', function () {
     var m = mundoDePrueba(9);
     m.jugador.inmune = 1e9;
     var es = m.entidades.filter(function (e) { return e.enemigo; });
-    afirmar(es.length >= 4, 'el nivel 9 no tiene enemigos suficientes');
-
-    // Una sola baja aislada no debería frenar el juego
-    es[0].activa = true;
-    es[0].x = m.jugador.x + 40;
-    m.danarEnemigo(es[0], 99, 100, 0);
-    igual(m.lenta, 0, 'se activó la cámara lenta por una sola baja');
+    es.slice(0, 4).forEach(function (e) {
+      e.activa = true;
+      e.x = m.jugador.x + 40;
+      m.danarEnemigo(e, 99, 100, 0);
+    });
+    afirmar(m.lenta === undefined, 'quedó rastro de la cámara lenta');
+    afirmar(typeof m.factorTiempo !== 'function', 'quedó el factor de tiempo global');
   });
 
   test('los efectos de cámara se pueden bajar y apagar', function () {

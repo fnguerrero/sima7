@@ -189,7 +189,7 @@ G.motor = (function () {
   /* ---- Transiciones del juego ---- */
 
   function avanzarJuego(dt) {
-    mundo.actualizar(dt * mundo.factorTiempo());
+    mundo.actualizar(dt);
 
     if (mundo.estado === 'muerto' && mundo.tEstado > 1.8) {
       partida.vidas--;

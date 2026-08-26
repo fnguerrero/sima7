@@ -131,12 +131,9 @@ guardada y se ve en la pantalla de selección.
 crecen en cantidad y en calaña; cada tres cae un arma o un botiquín. Guarda la
 mejor oleada alcanzada.
 
-**Los efectos de cámara se pueden bajar o apagar** (`T`, o desde el menú). Son
-tres cosas que le dan peso a los impactos pero que en exceso se sienten como que
-el juego se traba: el sacudón, el freeze de unos milisegundos al matar, y la
-cámara lenta al limpiar una zona. Esa última se ganó con una racha de tres o más
-y no vuelve a aparecer hasta doce segundos después, justamente para que siga
-sintiéndose como un premio.
+**Los efectos de cámara se pueden bajar o apagar** (`T`, o desde el menú): el
+sacudón y el freeze de unos milisegundos al matar. Le dan peso a los impactos,
+pero en exceso se sienten como que el juego se traba, así que van con perilla.
 
 ## Las cuatro capas
 

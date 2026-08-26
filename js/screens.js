@@ -269,7 +269,7 @@ G.pantallas = (function () {
         ['R', 'reiniciar el nivel'],
         ['Q', 'desde la pausa, volver al menú'],
         ['M · G', 'silenciar · cambiar el nivel de sangre'],
-        ['T', 'efectos de cámara: sacudón, freeze y cámara lenta']
+        ['T', 'efectos de cámara: sacudón y freeze al matar']
       ]);
 
       filas.forEach(function (f, i) {
@@ -296,7 +296,7 @@ G.pantallas = (function () {
       G.texto(ctx, 'T  efectos de cámara: ' + NOMBRES_EFECTOS[G.save.nivelEfectos()], W / 2, 206,
               { size: 11, align: 'center', color: '#c3ced8' });
       G.texto(ctx, 'Q  volver al menú', W / 2, 224, { size: 11, align: 'center' });
-      G.texto(ctx, 'los efectos de cámara son el sacudón, el freeze al matar y la cámara lenta',
+      G.texto(ctx, 'los efectos de cámara son el sacudón y el freeze de un instante al matar',
               W / 2, 250, { size: 8, align: 'center', color: '#66727d' });
       G.texto(ctx, 'el cambio de sangre se aplica al reiniciar el nivel', W / 2, 264,
               { size: 8, align: 'center', color: '#66727d' });

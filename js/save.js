@@ -9,7 +9,7 @@ G.save = (function () {
     mejorPuntaje: 0,
     completado: false,
     gore: 2,            // 0 apagado · 1 moderado · 2 completo
-    efectos: 2,         // sacudón, hit stop y cámara lenta: 0 apagado · 1 suave · 2 completo
+    efectos: 2,         // sacudón y hit stop: 0 apagado · 1 suave · 2 completo
     esquema: 'normal',  // normal | alternativo
     introVista: false,  // si ya vio la introducción de la historia
     mejorTiempo: {},    // por nivel, en segundos

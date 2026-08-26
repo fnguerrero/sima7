@@ -37,8 +37,6 @@ G.crearMundo = function (numeroNivel, partida) {
     esquirlasNivel: 0,
     jefe: null,
     congelado: 0,        // hit stop: el mundo se detiene, la pantalla no
-    lenta: 0,            // cámara lenta breve al limpiar una zona
-    tUltimaLenta: -99,   // para no encadenar cámaras lentas
     cadaveres: [],
     control: null,       // baliza activada en este nivel
     enemigosNivel: 0,
@@ -333,15 +331,8 @@ G.crearMundo = function (numeroNivel, partida) {
         G.audio.carne();
         if (Math.random() < 0.75) G.audio.grito();
       }
-      // Si era el último de la zona, un respiro. Pero solo si fue una racha de
-      // verdad y hace rato que no pasa: si no, el juego parece que se traba
+      // Zona limpia: suena y el tipo lo comenta, pero el juego no se frena
       if (!quedanEnemigosCerca()) {
-        var racha = partida.combo >= G.LENTA_MIN_BAJAS;
-        var listo = mundo.t - mundo.tUltimaLenta > G.LENTA_ENFRIAMIENTO;
-        if (racha && listo && G.save.nivelEfectos() === 2) {
-          mundo.lenta = Math.max(mundo.lenta, G.LENTA_ULTIMA_BAJA);
-          mundo.tUltimaLenta = mundo.t;
-        }
         G.audio.zonaLimpia();
         mundo.jugador.decir('sector');
       }
@@ -405,7 +396,7 @@ G.crearMundo = function (numeroNivel, partida) {
       mundo.efectos.polvo(cx, cy + 10, 18, 'rgba(160,150,138,0.5)');
       // 5. quemadura en el piso
       mundo.efectos.mancha(cx, cy + 8, 16, 'rgba(20,14,10,0.55)', 0.7);
-      mundo.camara.sacudir(0.7, 16);
+      mundo.camara.sacudir(0.3, 6.5);
       mundo.congelar(G.CONGELAR_EXPLOSION);
       G.audio.explosion();
 
@@ -511,7 +502,7 @@ G.crearMundo = function (numeroNivel, partida) {
     mundo.efectos.humo(cx, cy, 20, 'rgba(70,60,55,0.55)');
     mundo.efectos.chispas(cx, cy, 48, '#ffd9a0');
     mundo.efectos.mancha(cx, cy + 6, 11, 'rgba(20,14,10,0.5)', 0.6);
-    mundo.camara.sacudir(0.5, 11);
+    mundo.camara.sacudir(0.24, 5);
     mundo.congelar(G.CONGELAR_MUERTE);
     G.audio.explosion();
 
@@ -712,9 +703,7 @@ G.crearMundo = function (numeroNivel, partida) {
       mundo.jugador.morir(mundo);
     }
 
-    // El poder del jugador ralentiza todo lo demás; la cámara lenta tras limpiar
-    // una zona ralentiza también al jugador, y por eso se aplica afuera
-    if (mundo.lenta > 0) mundo.lenta -= dt;
+    // El poder del jugador ralentiza todo lo demás
     var escala = mundo.jugador.lentoActivo ? G.ESCALA_LENTA : 1;
     var dtM = dt * escala;
 
@@ -1025,12 +1014,6 @@ G.crearMundo = function (numeroNivel, partida) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
   }
-
-  /* Factor global de velocidad: 1 normal, menos durante la cámara lenta del
-     último enemigo. El motor lo usa para escalar el dt de todo el juego. */
-  mundo.factorTiempo = function () {
-    return mundo.lenta > 0 ? G.LENTA_FACTOR : 1;
-  };
 
   /* Expuesto para los tests. */
   mundo.charEn = charEn;
