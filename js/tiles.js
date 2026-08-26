@@ -16,7 +16,7 @@ G.tiles = (function () {
     'X': { solido: true, tipo: 'escombro' },
     'V': { solido: true, tipo: 'veta', animado: true, luz: true },
     '=': { oneway: true, tipo: 'rejilla' },
-    '^': { peligro: true, tipo: 'puas' },
+    '^': { peligro: true, tipo: 'sierra', animado: true },
     'L': { peligro: true, tipo: 'liquido', animado: true, luz: true },
     'W': { peligro: true, tipo: 'charco', animado: true }
   };
@@ -52,6 +52,37 @@ G.tiles = (function () {
      `n` es un ruido determinista por celda: mismas grietas siempre, sin guardar nada. */
 
   function r(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
+
+  /* Los gradientes son caros de crear y acá se repetían en cada tile animado y
+     en cada frame: una fila de charcos podía costar más que el resto del juego
+     junto. Como solo dependen de la fila y de la paleta, se guardan. */
+  var cacheGrad = {};
+
+  function gradCharco(ctx, y, techo, P) {
+    var clave = 'ch' + y + '|' + techo + '|' + P.liquido;
+    var g = cacheGrad[clave];
+    if (!g) {
+      g = ctx.createLinearGradient(0, y + techo, 0, y + T);
+      g.addColorStop(0, P.liquidoClaro);
+      g.addColorStop(0.35, P.liquido);
+      g.addColorStop(1, 'rgba(0,0,0,0.45)');
+      cacheGrad[clave] = g;
+    }
+    return g;
+  }
+
+  function gradDisco(ctx, radio) {
+    var clave = 'disco' + radio;
+    var g = cacheGrad[clave];
+    if (!g) {
+      g = ctx.createRadialGradient(-radio * 0.3, -radio * 0.3, 1, 0, 0, radio * 0.85);
+      g.addColorStop(0, '#f2f7fb');
+      g.addColorStop(0.45, '#b9c6d2');
+      g.addColorStop(1, '#6f7d8a');
+      cacheGrad[clave] = g;
+    }
+    return g;
+  }
 
   /* Roca: bloques irregulares de tamaños distintos. La clave para que no se lea
      como mampostería es que nada cruce el tile de lado a lado y que el tamaño de
@@ -185,25 +216,76 @@ G.tiles = (function () {
     r(ctx, x + 1, y + 9, 3, 1, 'rgba(255,255,255,0.12)');
   }
 
-  function dibujarPuas(ctx, x, y, n, P) {
-    r(ctx, x, y + 17, T, 7, P.metalOsc);
-    r(ctx, x, y + 17, T, 2, P.metal);
-    r(ctx, x, y + 17, T, 1, 'rgba(255,255,255,0.16)');
-    for (var i = 0; i < 4; i++) {
-      var bx = x + 1 + i * 6;
-      var alt = 12 + Math.floor(G.ruido(n + i) * 4);
-      ctx.fillStyle = '#a9bac9';
-      ctx.beginPath();
-      ctx.moveTo(bx, y + 18);
-      ctx.lineTo(bx + 2.5, y + 18 - alt);
-      ctx.lineTo(bx + 5, y + 18);
+  /* Sierra circular: metal plateado que gira. Antes eran tres púas grises que
+     de lejos se confundían con el piso; una sierra girando se lee de una y no
+     hace falta explicarla. */
+  function dibujarSierra(ctx, x, y, t, n, P) {
+    var cx = x + T / 2, cy = y + T / 2 + 2;
+    var radio = 9.5;
+    var giro = t * (4 + n * 2) + n * 6.3;
+
+    // Soporte: el eje sale de una base atornillada al piso
+    r(ctx, x + 4, y + T - 7, T - 8, 7, P.metalOsc);
+    r(ctx, x + 4, y + T - 7, T - 8, 2, P.metal);
+    r(ctx, x + 9, y + 12, 6, T - 18, '#4a545e');
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(giro);
+
+    // Dientes
+    ctx.fillStyle = '#e8eff5';
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var a = (Math.PI * 2 / 10) * i;
+      var a2 = a + Math.PI * 2 / 10;
+      ctx.moveTo(Math.cos(a) * radio * 0.72, Math.sin(a) * radio * 0.72);
+      ctx.lineTo(Math.cos(a + 0.14) * radio, Math.sin(a + 0.14) * radio);
+      ctx.lineTo(Math.cos(a2) * radio * 0.78, Math.sin(a2) * radio * 0.78);
       ctx.closePath();
-      ctx.fill();
-      r(ctx, bx + 2, y + 18 - alt + 2, 1, Math.max(1, alt - 5), 'rgba(255,255,255,0.6)');
-      r(ctx, bx, y + 14, 5, 2, 'rgba(0,0,0,0.25)');
-      // Restos secos en la base
-      r(ctx, bx + 1, y + 15, 3, 3, 'rgba(120,18,20,0.5)');
     }
+    ctx.fill();
+
+    // Disco, con degradado para que se vea chapa y no cartulina
+    ctx.fillStyle = gradDisco(ctx, radio);
+    ctx.beginPath();
+    ctx.arc(0, 0, radio * 0.78, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Agujeros de aligeramiento: son los que hacen ver que gira
+    ctx.fillStyle = P.rocaOsc;
+    for (var h = 0; h < 4; h++) {
+      var ah = (Math.PI / 2) * h + 0.4;
+      ctx.beginPath();
+      ctx.arc(Math.cos(ah) * radio * 0.42, Math.sin(ah) * radio * 0.42, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Eje
+    ctx.fillStyle = '#5c6874';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#9fb0bd';
+    ctx.beginPath();
+    ctx.arc(-0.6, -0.6, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Destello que barre el filo, y restos de lo que ya cortó
+    ctx.save();
+    ctx.globalAlpha = 0.25 + 0.35 * Math.abs(Math.sin(t * 5 + n * 3));
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radio * 0.9, giro % (Math.PI * 2), (giro % (Math.PI * 2)) + 0.9);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(150,20,22,0.45)';
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(giro * 0.5) * 4, cy + 6, 2.2, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   /* ---- Animados ---- */
@@ -228,18 +310,66 @@ G.tiles = (function () {
     }
   }
 
+  /* Charco tóxico: antes era un rectángulo verde que podía pasar por pared. Lo
+     que lo vuelve líquido es el brillo en la superficie, el reflejo que se
+     mueve y las burbujas que revientan. */
   function dibujarCharco(ctx, x, y, t, P, superficie) {
-    var onda = Math.sin(x * 0.2 + t * 1.6) * 1.6;
-    ctx.globalAlpha = 0.84;
-    r(ctx, x, y + (superficie ? 6 : 0), T, T - (superficie ? 6 : 0), P.liquido);
-    ctx.globalAlpha = 1;
-    if (superficie) {
-      r(ctx, x, y + 5 + onda, T, 3, P.liquidoClaro);
-      r(ctx, x, y + 5 + onda, T, 1, 'rgba(255,255,255,0.22)');
-      var b = Math.floor(t * 1.5 + x * 0.1) % 5;
-      if (b === 0) r(ctx, x + 7, y + 11, 3, 3, 'rgba(255,255,255,0.35)');
-      if (b === 3) r(ctx, x + 16, y + 14, 2, 2, 'rgba(255,255,255,0.25)');
+    var onda = Math.sin(x * 0.2 + t * 1.6) * 1.8 + Math.sin(x * 0.07 + t * 2.7) * 1;
+    var techo = superficie ? 6 : 0;
+
+    // Cuerpo, más oscuro al fondo
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = gradCharco(ctx, y, techo, P);
+    ctx.fillRect(x, y + techo, T, T - techo);
+    ctx.restore();
+
+    if (!superficie) {
+      // Corrientes internas
+      ctx.globalAlpha = 0.18;
+      r(ctx, x + 4, y + 8 + onda, 8, 2, P.liquidoClaro);
+      r(ctx, x + 14, y + 16 - onda, 6, 2, P.liquidoClaro);
+      ctx.globalAlpha = 1;
+      return;
     }
+
+    // Menisco: la línea brillante donde termina el líquido
+    ctx.fillStyle = P.liquidoClaro;
+    ctx.fillRect(x, y + 4 + onda, T, 3);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(x, y + 4 + onda, T, 1);
+
+    // Reflejo que se desplaza
+    ctx.save();
+    ctx.globalAlpha = 0.30 + 0.12 * Math.sin(t * 2 + x * 0.05);
+    ctx.fillStyle = '#ffffff';
+    var rx = x + ((t * 22 + x * 0.7) % (T + 16)) - 8;
+    ctx.beginPath();
+    ctx.ellipse(rx, y + 8 + onda, 4.5, 1.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Burbujas: nacen, suben y revientan
+    for (var b = 0; b < 2; b++) {
+      var fase = (t * 0.55 + b * 0.5 + G.ruido(x + b) ) % 1;
+      var bx = x + 5 + ((b * 11 + Math.floor(x / T) * 7) % 14);
+      var by = y + T - 3 - fase * (T - 10);
+      var rr = 1.6 + fase * 1.6;
+      ctx.globalAlpha = fase < 0.85 ? 0.55 : (1 - fase) / 0.15 * 0.55;
+      ctx.fillStyle = '#eaffd0';
+      ctx.beginPath();
+      ctx.arc(bx, by, rr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Vapor apenas insinuado sobre la superficie
+    ctx.globalAlpha = 0.10 + 0.06 * Math.sin(t * 1.7 + x * 0.1);
+    ctx.fillStyle = P.liquidoClaro;
+    ctx.beginPath();
+    ctx.ellipse(x + T / 2, y + 1 + onda, 9, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   function dibujarVeta(ctx, x, y, t, n, P) {
@@ -310,7 +440,6 @@ G.tiles = (function () {
         case 'panel':    dibujarPanel(ctx, x, y, n, P, danio); break;
         case 'escombro': dibujarEscombro(ctx, x, y, n, P); break;
         case 'rejilla':  dibujarRejilla(ctx, x, y, n, P); break;
-        case 'puas':     dibujarPuas(ctx, x, y, n, P); break;
       }
     },
 
@@ -322,6 +451,7 @@ G.tiles = (function () {
         case 'charco':  dibujarCharco(ctx, x, y, t, P, superficie); break;
         case 'veta':    dibujarVeta(ctx, x, y, t, n, P); break;
         case 'barril':  dibujarBarril(ctx, x, y, t, n, P); break;
+        case 'sierra':  dibujarSierra(ctx, x, y, t, n, P); break;
       }
     }
   };

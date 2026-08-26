@@ -12,7 +12,7 @@
    validator.js verifica después que se pueda llegar del spawn a la salida.
 
    Tiles:  # roca · S metal · B panel rompible · C barril explosivo · X escombro
-           V veta luminosa · = rejilla atravesable · ^ púas · L líquido · W charco
+           V veta luminosa · = rejilla atravesable · ^ sierra · L líquido · W charco
    Marcas: P spawn · F salida · K baliza (punto de control)
    Gente:  1 saqueador · 2 guardia · 3 jetpack · 4 escopetero · 5 francotirador
            6 pesado · 9 lo del fondo

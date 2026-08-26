@@ -270,12 +270,19 @@ G.crearJugador = function (col, fila) {
         j.saltosUsados = 1;
         mundo.efectos.polvo(j.x + j.w / 2, j.y + j.h, 6);
         G.audio.salto();
-      } else if (j.saltosUsados < 2) {
-        j.vy = -G.IMPULSO_SALTO2;
+      } else if (j.saltosUsados < G.SALTOS_MAX) {
+        // Segundo y tercer salto: cada uno empuja un poco menos que el anterior
+        j.saltosUsados++;
+        j.vy = -(j.saltosUsados === 2 ? G.IMPULSO_SALTO2 : G.IMPULSO_SALTO3);
         j.buffer = 0;
-        j.saltosUsados = 2;
-        mundo.efectos.polvo(j.x + j.w / 2, j.y + j.h, 9, 'rgba(120,200,220,0.5)');
-        mundo.efectos.destello(j.x + j.w / 2, j.y + j.h, 26, G.color.visor, 0.14);
+        var ultimo = j.saltosUsados >= G.SALTOS_MAX;
+        mundo.efectos.polvo(j.x + j.w / 2, j.y + j.h, ultimo ? 12 : 9,
+                            ultimo ? 'rgba(255,190,120,0.5)' : 'rgba(120,200,220,0.5)');
+        mundo.efectos.destello(j.x + j.w / 2, j.y + j.h, ultimo ? 32 : 26,
+                               ultimo ? '#ffb03a' : G.color.visor, 0.14);
+        // Anillo bajo los pies: se ve cuántos saltos quedan
+        mundo.efectos.onda(j.x + j.w / 2, j.y + j.h, ultimo ? 26 : 20,
+                           ultimo ? '#ffd9a0' : '#bff4ff', 0.28, 3);
         G.audio.salto2();
       }
     }

@@ -309,29 +309,32 @@
     afirmar(j.muerto, 'sobrevivió con 0 de vida');
   });
 
-  test('el doble salto existe y el tercero no', function () {
+  test('se puede saltar tres veces y no una cuarta', function () {
     var m = mundoDePrueba(1);
     var j = m.jugador;
     j.enSuelo = true; j.coyote = G.COYOTE; j.saltosUsados = 0;
 
-    tecla('Space', true); G.input.actualizar();
-    j.actualizar(1 / 120, m);
-    tecla('Space', false); G.input.actualizar();
-    afirmar(j.vy < 0, 'no saltó');
-    igual(j.saltosUsados, 1);
+    for (var n = 1; n <= G.SALTOS_MAX; n++) {
+      j.vy = 100;
+      tecla('Space', true); G.input.actualizar();
+      j.actualizar(1 / 120, m);
+      tecla('Space', false); G.input.actualizar();
+      afirmar(j.vy < 0, 'no hizo el salto ' + n);
+      igual(j.saltosUsados, n, 'saltos usados tras el ' + n);
+    }
 
     j.vy = 100;
     tecla('Space', true); G.input.actualizar();
     j.actualizar(1 / 120, m);
     tecla('Space', false); G.input.actualizar();
-    afirmar(j.vy < 0, 'no hizo el segundo salto');
-    igual(j.saltosUsados, 2);
+    afirmar(j.vy > 0, 'hizo un salto de más');
+    return G.SALTOS_MAX + ' saltos';
+  });
 
-    j.vy = 100;
-    tecla('Space', true); G.input.actualizar();
-    j.actualizar(1 / 120, m);
-    tecla('Space', false); G.input.actualizar();
-    afirmar(j.vy > 0, 'hizo un tercer salto');
+  test('cada salto encadenado empuja menos que el anterior', function () {
+    afirmar(G.IMPULSO_SALTO > G.IMPULSO_SALTO2, 'el segundo no es más flojo');
+    afirmar(G.IMPULSO_SALTO2 > G.IMPULSO_SALTO3, 'el tercero no es más flojo');
+    return G.IMPULSO_SALTO + ' → ' + G.IMPULSO_SALTO2 + ' → ' + G.IMPULSO_SALTO3;
   });
 
   test('el disparo sale hacia donde mira', function () {
@@ -562,8 +565,44 @@
     ef.particulas.forEach(function (p) { if (p.subtipo) subtipos[p.subtipo] = true; });
     afirmar(subtipos.organo, 'no hay órganos');
     afirmar(subtipos.tripa, 'no hay tripas');
-    afirmar(subtipos.hueso, 'no hay huesos');
+    afirmar(subtipos.femur || subtipos.craneo || subtipos.costilla, 'no hay huesos');
     return Object.keys(subtipos).join(', ');
+  });
+
+  test('los restos que caen quedan tirados en el piso', function () {
+    var m = mundoDePrueba(1);
+    var e = primerEnemigo(m);
+    e.activa = true;
+    m.danarEnemigo(e, 99, 100, 0);
+    var pedazos = m.efectos.particulas.filter(function (p) { return p.tipo === 'pedazo'; });
+    afirmar(pedazos.length > 0, 'no voló ningún resto');
+    // Simular hasta que se posen
+    for (var i = 0; i < 400; i++) m.efectos.actualizar(1 / 60, m.mapa);
+    var apoyados = pedazos.filter(function (p) { return p.apoyado; });
+    afirmar(apoyados.length > 0, 'ninguno llegó a apoyarse');
+  });
+
+  test('hay huesos, vísceras y manos entre lo que sale volando', function () {
+    var ef = G.crearEfectos(600, 400, 2);
+    var vistos = {};
+    for (var i = 0; i < 6; i++) {
+      ef.reventar(40, 40, 18, 26, 'sangre');
+      ef.particulas.forEach(function (p) { if (p.subtipo) vistos[p.subtipo] = true; });
+    }
+    ['organo', 'tripa', 'femur', 'craneo', 'mano', 'costilla'].forEach(function (k) {
+      afirmar(vistos[k], 'nunca salió: ' + k);
+    });
+    return Object.keys(vistos).length + ' tipos de resto';
+  });
+
+  test('la sangre chorrea por las paredes', function () {
+    var ef = G.crearEfectos(600, 400, 2);
+    ef.chorrear(100, 100, 20, 'sangre');
+    var ch = ef.particulas.filter(function (p) { return p.tipo === 'chorreo'; });
+    igual(ch.length, 1, 'chorreos');
+    var y0 = ch[0].y;
+    for (var i = 0; i < 30; i++) ef.actualizar(1 / 60, null);
+    afirmar(ch[0].y > y0, 'el hilo no bajó');
   });
 
   test('con la sangre apagada no se dibuja nada rojo', function () {

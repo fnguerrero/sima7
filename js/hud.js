@@ -140,6 +140,21 @@ G.hud = (function () {
         });
       }
 
+      // --- Saltos que quedan en el aire ---
+      if (!j.enSuelo && !j.muerto) {
+        var libres = G.SALTOS_MAX - j.saltosUsados;
+        for (var sq = 0; sq < G.SALTOS_MAX; sq++) {
+          var px = 262 + sq * 9, py = 20;
+          ctx.fillStyle = sq < libres ? '#bff4ff' : 'rgba(255,255,255,0.16)';
+          ctx.beginPath();
+          ctx.moveTo(px + 3, py);
+          ctx.lineTo(px + 6, py + 5);
+          ctx.lineTo(px, py + 5);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
       // --- Granadas ---
       var gdef = G.granadas.obtener(j.tipoGranada);
       var gx = 146, gy = G.VIEW_H - 26;

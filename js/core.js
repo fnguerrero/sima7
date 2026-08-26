@@ -34,7 +34,9 @@ G.FRICCION_AIRE = 300;
    ~150px (6,2 tiles) y cruza unos 10 tiles corriendo. El segundo salto agrega
    otros 4 tiles. Caerse a un pozo tiene que ser un error grosero, no un peaje. */
 G.IMPULSO_SALTO = 620;
-G.IMPULSO_SALTO2 = 520;   // doble salto
+G.IMPULSO_SALTO2 = 520;   // segundo salto
+G.IMPULSO_SALTO3 = 460;   // tercero: cada uno empuja un poco menos
+G.SALTOS_MAX = 3;
 G.ALTURA_SALTO_TILES = 6;
 G.HUECO_MAX_TILES = 8;
 G.COYOTE = 0.13;          // seg de gracia para saltar después de dejar el piso

@@ -244,7 +244,7 @@ G.pantallas = (function () {
 
       var filas = alternativo ? [
         ['A  D', 'moverse'],
-        ['Espacio', 'saltar · en el aire, saltar otra vez'],
+        ['Espacio', 'saltar · hasta tres veces seguidas'],
         ['Shift', 'correr'],
         ['W  S', 'apuntar arriba o abajo'],
         ['ENTER', 'disparar · mantener = disparo cargado'],
@@ -254,7 +254,7 @@ G.pantallas = (function () {
         ['L', 'ULTRA VELOCIDAD — gasta la barra VEL']
       ] : [
         ['← →', 'moverse'],
-        ['Espacio', 'saltar · en el aire, saltar otra vez'],
+        ['Espacio', 'saltar · hasta tres veces seguidas'],
         ['Shift', 'correr'],
         ['↑ ↓', 'apuntar arriba o abajo'],
         ['Z  ·  Ctrl', 'disparar · mantener = disparo cargado'],

@@ -22,7 +22,7 @@ Hay dos esquemas de teclas y se cambian desde el menú:
 | --- | --- | --- |
 | Moverse | `←` `→` | `A` `D` |
 | Apuntar arriba o abajo | `↑` `↓` | `W` `S` |
-| Saltar (dos veces en el aire) | `Espacio` | `Espacio` |
+| Saltar (hasta tres veces seguidas) | `Espacio` | `Espacio` |
 | Correr | `Shift` | `Shift` |
 | Disparar (mantener = cargado) | `Z` · `Ctrl` | **`Enter`** |
 | Tirar granada | `F` | `Ñ` |
@@ -57,9 +57,13 @@ después de tocarla, reaparecés ahí y no al principio.
 arriba, lo aplastás, rebotás y seguís — con el grito incluido. Antes el contacto
 solo hacía daño y quedabas rebotando encima del enemigo, enganchado.
 
-**Tampoco hay techo**: con el doble salto se llega arriba de todo, y toparse contra
-una tapa invisible se sentía igual de mal. El salto sigue de largo, sale un
-instante de cuadro y vuelve.
+**Se salta hasta tres veces seguidas**, cada una un poco más floja que la anterior.
+Arriba a la derecha del HUD hay tres triangulitos que muestran cuántos quedan
+mientras estás en el aire.
+
+**Tampoco hay techo**: con los saltos encadenados se llega arriba de todo, y
+toparse contra una tapa invisible se sentía igual de mal. El salto sigue de
+largo, sale un instante de cuadro y vuelve.
 
 **Ellos también caen de un tiro.** Todos los enemigos son gente del equipo que la
 Compañía mandó a limpiar el pozo, y cualquiera se va con un disparo de la pistola
@@ -103,10 +107,16 @@ recarga sola con el tiempo, con cada baja, y de golpe con las ampollas de
 adrenalina.
 
 **La sangre tiene tres modos** (`G`, o desde el menú): apagada, moderada y
-completa. En completa vuelan órganos, tripas y huesos, la sangre salpica las
-paredes, los cuerpos quedan tirados con su charco y las manchas se acumulan hasta
-el final del nivel. Cada muerte congela el mundo unos milisegundos, y la última
-baja de una zona entra en cámara lenta.
+completa. En completa vuelan órganos, tripas, costillas, fémures, cráneos y
+manos —cada uno con su forma— y **lo que cae al piso se queda ahí**: el resto se
+pinta en el lienzo del nivel, así que podés volver sobre tus pasos y encontrar el
+desastre que dejaste sin que cueste una sola partícula viva.
+
+La sangre además se comporta como líquido: las gotas se estiran en la dirección
+en la que viajan y tienen brillo, las manchas son cuerpos con lóbulos y gotas
+satélite en vez de óvalos prolijos, y contra una pared **escurre hacia abajo**
+dejando el hilo. Cada muerte congela el mundo unos milisegundos, y la última baja
+de una zona entra en cámara lenta.
 
 **Matar seguido multiplica.** Cada baja abre una ventana de 2,6 segundos para la
 siguiente; encadenando llegás a 5x puntos. Que te peguen corta la racha, así que
@@ -127,7 +137,7 @@ mejor oleada alcanzada.
 | --- | --- | --- | --- |
 | 1 | Boca del pozo | Colonia | Correr, saltar, disparar, esquirlas, saqueadores |
 | 2 | Nivel de carga | Colonia | Paneles rompibles, guardias con jetpack, escopeta |
-| 3 | Pozo de ventilación | Colonia | Púas, plataformas móviles, barriles explosivos |
+| 3 | Pozo de ventilación | Colonia | Sierras, plataformas móviles, barriles explosivos |
 | 4 | Galería 4 | Infectado | Escopeteros, francotiradores, charcos tóxicos |
 | 5 | El criadero | Infectado | Plataformas que se desprenden, ametralladora |
 | 6 | Sala de bombas | Infectado | Ríos de líquido caliente, pesados con ametralladora |

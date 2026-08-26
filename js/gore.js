@@ -29,13 +29,31 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   /* Lo que se descarta primero cuando se llena: hay mil gotas y una sola onda
      expansiva, así que tirar la onda para hacerle lugar a una gota arruinaba
      justo el efecto que más se mira. */
-  var SACRIFICABLES = { gota: 1, chispa: 1, humo: 1, pedazo: 1 };
+  var SACRIFICABLES = { gota: 1, chispa: 1, humo: 1, chorreo: 1 };
+
+  /* Orden de descarte: primero lo que sobra (gotas, chispas), después los restos
+     que ya se apoyaron —esos igual quedan pintados en el lienzo—, y solo al
+     final cualquier cosa. Las ondas y el fuego, que son uno o dos y es lo que
+     más se mira, no se tocan mientras haya otra opción. */
+  function indiceDescartable() {
+    var i;
+    for (i = 0; i < sis.particulas.length; i++) {
+      if (SACRIFICABLES[sis.particulas[i].tipo]) return i;
+    }
+    for (i = 0; i < sis.particulas.length; i++) {
+      if (sis.particulas[i].tipo === 'pedazo') return i;
+    }
+    for (i = 0; i < sis.particulas.length; i++) {
+      if (sis.particulas[i].tipo !== 'onda' && sis.particulas[i].tipo !== 'fuego') return i;
+    }
+    return 0;
+  }
 
   function agregar(p) {
     if (sis.particulas.length >= MAX_PARTICULAS) {
-      var i = 0;
-      while (i < sis.particulas.length && !SACRIFICABLES[sis.particulas[i].tipo]) i++;
-      sis.particulas.splice(i < sis.particulas.length ? i : 0, 1);
+      var fuera = sis.particulas.splice(indiceDescartable(), 1)[0];
+      // Si el resto ya estaba apoyado, se pinta antes de irse: no se pierde
+      if (fuera && fuera.tipo === 'pedazo' && fuera.apoyado && gore > 0) fijarResto(fuera);
     }
     sis.particulas.push(p);
   }
@@ -55,6 +73,128 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   function colorSangreClaro(clase) {
     if (gore === 0) return '#fff3c4';
     return clase === 'icor' ? '#b6f07a' : G.color.sangreClara;
+  }
+
+  /* ---------------- Formas de los restos ----------------
+     Cada parte se dibuja centrada en el origen; quien la llama se encarga de
+     trasladar y rotar. La misma función sirve para la partícula que vuela y
+     para el resto que queda fijo en el piso. */
+  function dibujarParte(ctx, p) {
+    var t = p.tam;
+    ctx.fillStyle = p.color;
+
+    switch (p.subtipo) {
+      case 'tripa':
+        // Tira que ondula: dos curvas y un bulto en la punta
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = t * 0.75;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-t * 2, 0);
+        ctx.quadraticCurveTo(-t * 0.6, -t * 0.9, 0, 0);
+        ctx.quadraticCurveTo(t * 0.6, t * 0.9, t * 2, 0);
+        ctx.stroke();
+        ctx.fillStyle = p.colorBorde;
+        ctx.beginPath();
+        ctx.arc(t * 2, 0, t * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'costilla':
+        // Arco fino de hueso
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = t * 0.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(0, t * 0.8, t * 1.5, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+        break;
+
+      case 'femur':
+        // Caña con las dos cabezas
+        ctx.beginPath();
+        ctx.ellipse(0, 0, t * 1.6, t * 0.34, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-t * 1.5, -t * 0.28, t * 0.5, 0, Math.PI * 2);
+        ctx.arc(-t * 1.5, t * 0.28, t * 0.45, 0, Math.PI * 2);
+        ctx.arc(t * 1.5, -t * 0.26, t * 0.45, 0, Math.PI * 2);
+        ctx.arc(t * 1.5, t * 0.26, t * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(120,100,70,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(0, t * 0.16, t * 1.2, t * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'craneo':
+        // Bóveda, mandíbula y dos cuencas
+        ctx.beginPath();
+        ctx.ellipse(0, -t * 0.15, t * 0.95, t * 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, t * 0.6, t * 0.62, t * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(30,20,15,0.85)';
+        ctx.beginPath();
+        ctx.arc(-t * 0.36, -t * 0.2, t * 0.26, 0, Math.PI * 2);
+        ctx.arc(t * 0.36, -t * 0.2, t * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(-t * 0.1, t * 0.15, t * 0.2, t * 0.3);
+        break;
+
+      case 'mano':
+        // Palma y cuatro dedos abiertos
+        ctx.beginPath();
+        ctx.ellipse(0, 0, t * 0.7, t * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = t * 0.28;
+        ctx.lineCap = 'round';
+        for (var d = 0; d < 4; d++) {
+          var a = -0.9 + d * 0.42;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * t * 0.5, Math.sin(a) * t * 0.5);
+          ctx.lineTo(Math.cos(a) * t * 1.25, Math.sin(a) * t * 1.25);
+          ctx.stroke();
+        }
+        // Muñón
+        ctx.fillStyle = G.color.sangre;
+        ctx.beginPath();
+        ctx.ellipse(-t * 0.62, 0, t * 0.22, t * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'chatarra':
+        ctx.fillRect(-t, -t * 0.55, t * 2, t * 1.1);
+        ctx.fillStyle = p.colorBorde;
+        ctx.fillRect(-t, -t * 0.55, t * 2, t * 0.3);
+        break;
+
+      case 'organo':
+        // Bulto con lóbulo y brillo
+        ctx.beginPath();
+        ctx.ellipse(0, 0, t * 0.95, t * 0.78, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(t * 0.5, -t * 0.3, t * 0.5, t * 0.42, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = p.colorBorde;
+        ctx.beginPath();
+        ctx.ellipse(-t * 0.25, -t * 0.3, t * 0.3, t * 0.18, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      default:
+        // Trozo de carne cualquiera
+        ctx.beginPath();
+        ctx.ellipse(0, 0, t, t * 0.65, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = p.colorBorde || p.color;
+        ctx.beginPath();
+        ctx.ellipse(-t * 0.2, -t * 0.25, t * 0.4, t * 0.2, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
   }
 
   /* ---------------- Emisores ---------------- */
@@ -83,12 +223,20 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   /* Reventar a alguien: vísceras, huesos y miembros, además del chorro.
      Los pedazos no son todos iguales a propósito: un cuerpo que estalla se lee
      como cuerpo cuando volando hay cosas de distinta forma y color. */
+  /* El catálogo de lo que sale volando. Cada forma se dibuja distinto (ver
+     dibujarParte), que es lo que hace que un fémur se lea como fémur y no como
+     otro rectángulo rojo. */
   var PARTES = [
-    { clase: 'organo', color: G.color.visceras, borde: G.color.visceraClara, tam: 4 },
-    { clase: 'organo', color: '#7a1c28', borde: '#b04552', tam: 3 },
-    { clase: 'tripa',  color: '#a8323f', borde: '#d0616c', tam: 3 },
-    { clase: 'hueso',  color: G.color.hueso, borde: '#ffffff', tam: 2 },
-    { clase: 'trozo',  color: G.color.sangre, borde: G.color.sangreClara, tam: 3 }
+    { clase: 'organo',   color: G.color.visceras, borde: G.color.visceraClara, tam: 4.5 },
+    { clase: 'organo',   color: '#7a1c28', borde: '#b04552', tam: 3.5 },
+    { clase: 'tripa',    color: '#a8323f', borde: '#d0616c', tam: 3.5 },
+    { clase: 'tripa',    color: '#8e2230', borde: '#c4515c', tam: 4 },
+    { clase: 'costilla', color: G.color.hueso, borde: '#ffffff', tam: 3 },
+    { clase: 'femur',    color: G.color.hueso, borde: '#ffffff', tam: 3.5 },
+    { clase: 'craneo',   color: '#efe7d2', borde: '#ffffff', tam: 4 },
+    { clase: 'mano',     color: G.color.piel, borde: '#e6b892', tam: 3 },
+    { clase: 'trozo',    color: G.color.sangre, borde: G.color.sangreClara, tam: 3.5 },
+    { clase: 'trozo',    color: '#9c1a22', borde: '#d8404a', tam: 3 }
   ];
 
   sis.reventar = function (x, y, w, h, clase) {
@@ -300,30 +448,116 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
 
   /* ---------------- Manchas ---------------- */
 
+  /* Una mancha de sangre no es un óvalo prolijo: es un cuerpo central con
+     lóbulos alrededor y algunas gotas satélite. Se dibuja con elipses porque el
+     lienzo va al doble de resolución y aguanta las curvas. */
   sis.mancha = function (x, y, tam, color, alpha) {
     if (gore === 0) return;
+    dctx.save();
     dctx.globalAlpha = alpha == null ? 0.75 : alpha;
     dctx.fillStyle = color;
-    // Un óvalo irregular hecho de tres rectángulos: se lee mejor que un círculo
-    dctx.fillRect(Math.round(x - tam), Math.round(y - tam * 0.4), tam * 2, tam * 0.8);
-    dctx.fillRect(Math.round(x - tam * 0.6), Math.round(y - tam * 0.7), tam * 1.2, tam * 1.4);
-    if (tam > 2) {
-      dctx.fillRect(Math.round(x + tam * 0.4), Math.round(y - 1), Math.round(tam * 0.8), 2);
-      dctx.fillRect(Math.round(x - tam * 1.3), Math.round(y), 2, 2);
+
+    // Cuerpo central, achatado como líquido apoyado
+    dctx.beginPath();
+    dctx.ellipse(x, y, tam * 1.15, tam * 0.72, 0, 0, Math.PI * 2);
+    dctx.fill();
+
+    // Una gota chica no necesita anatomía: con el cuerpo alcanza, y así una
+    // lluvia de 300 gotitas no cuesta 3000 curvas
+    if (tam < 2.2) {
+      dctx.restore();
+      return;
     }
-    dctx.globalAlpha = 1;
+
+    // Lóbulos: los dedos que deja al esparcirse
+    var lobulos = 2 + Math.floor(Math.random() * 3);
+    for (var i = 0; i < lobulos; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var d = tam * (0.6 + Math.random() * 0.7);
+      dctx.beginPath();
+      dctx.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.6,
+                   tam * (0.3 + Math.random() * 0.4),
+                   tam * (0.22 + Math.random() * 0.3),
+                   a, 0, Math.PI * 2);
+      dctx.fill();
+    }
+
+    // Gotas sueltas alrededor
+    if (tam > 2.5) {
+      for (var k = 0; k < 3; k++) {
+        var a2 = Math.random() * Math.PI * 2;
+        var d2 = tam * (1.2 + Math.random() * 1.1);
+        dctx.beginPath();
+        dctx.arc(x + Math.cos(a2) * d2, y + Math.sin(a2) * d2 * 0.7,
+                 0.6 + Math.random() * 1.1, 0, Math.PI * 2);
+        dctx.fill();
+      }
+    }
+
+    // Brillo: es lo que la hace ver mojada y no pintada
+    dctx.globalAlpha = (alpha == null ? 0.75 : alpha) * 0.35;
+    dctx.fillStyle = 'rgba(255,255,255,0.6)';
+    dctx.beginPath();
+    dctx.ellipse(x - tam * 0.3, y - tam * 0.28, tam * 0.3, tam * 0.14, -0.4, 0, Math.PI * 2);
+    dctx.fill();
+    dctx.restore();
   };
 
   /* Reguero grande, para muertes importantes. */
   sis.charco = function (x, y, tam, clase) {
     if (gore < 2) { sis.mancha(x, y, tam * 0.5, colorSangre(clase), 0.5); return; }
     var c = colorSangre(clase);
-    for (var i = 0; i < 14; i++) {
-      sis.mancha(x + (Math.random() - 0.5) * tam * 2.2,
-                 y + (Math.random() - 0.5) * tam * 0.7,
-                 2 + Math.random() * tam * 0.6, c, 0.55 + Math.random() * 0.35);
+    // Un charco es más ancho que alto: la sangre se desparrama sobre el piso
+    for (var i = 0; i < 16; i++) {
+      sis.mancha(x + (Math.random() - 0.5) * tam * 2.6,
+                 y + (Math.random() - 0.5) * tam * 0.55,
+                 2 + Math.random() * tam * 0.7, c, 0.5 + Math.random() * 0.4);
     }
+    // Un par de hilos que salen del charco, como si buscara la pendiente
+    dctx.save();
+    dctx.globalAlpha = 0.55;
+    dctx.strokeStyle = c;
+    dctx.lineCap = 'round';
+    for (var h = 0; h < 3; h++) {
+      var dir = Math.random() < 0.5 ? -1 : 1;
+      dctx.lineWidth = 1 + Math.random() * 2;
+      dctx.beginPath();
+      dctx.moveTo(x, y);
+      dctx.quadraticCurveTo(x + dir * tam, y + 2,
+                            x + dir * tam * (1.6 + Math.random()), y + 1 + Math.random() * 3);
+      dctx.stroke();
+    }
+    dctx.restore();
   };
+
+  /* Chorreadura: la sangre que baja por una pared después del impacto. */
+  sis.chorrear = function (x, y, largo, clase) {
+    if (gore === 0) return;
+    agregar({
+      tipo: 'chorreo',
+      x: x, y: y,
+      vx: 0, vy: 14 + Math.random() * 22,
+      vida: 1.4 + Math.random() * 1.6, max: 3,
+      tam: 1 + Math.random() * 1.6,
+      largoMax: largo || 12,
+      recorrido: 0,
+      color: colorSangre(clase),
+      clase: clase || 'sangre'
+    });
+  };
+
+  /* Un resto que ya se detuvo se pinta en el lienzo y deja de costar CPU: así
+     los huesos y las vísceras quedan tirados por todos lados sin acumular
+     partículas vivas. */
+  function fijarResto(p) {
+    if (gore === 0) return;
+    dctx.save();
+    dctx.globalAlpha = 0.92;
+    dctx.translate(p.x, p.y);
+    dctx.rotate(p.rot || 0);
+    dibujarParte(dctx, p);
+    dctx.restore();
+  }
 
   /* ---------------- Simulación ---------------- */
 
@@ -332,9 +566,14 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
     for (var i = 0; i < sis.particulas.length; i++) {
       var p = sis.particulas[i];
       p.vida -= dt;
+
       if (p.vida <= 0) {
-        // Al morir, las que manchan dejan su marca donde cayeron
-        if (p.mancha && gore > 0) {
+        // Un resto que se apagó queda pintado donde estaba: así el nivel se va
+        // llenando de huesos y vísceras sin costar una partícula viva más
+        if (p.tipo === 'pedazo' && p.apoyado && gore > 0) {
+          sis.mancha(p.x, p.y + p.tam * 0.4, p.tam * 1.5, colorSangre(p.clase), 0.5);
+          fijarResto(p);
+        } else if (p.mancha && gore > 0) {
           sis.mancha(p.x, p.y, (p.tam || 2) * (p.tipo === 'pedazo' ? 1.6 : 1.1),
                      colorSangre(p.clase), 0.55);
         }
@@ -342,24 +581,56 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
       }
 
       if (p.gravedad) p.vy += p.gravedad * dt;
+
+      // El hilo que baja por la pared avanza y va dejando su marca
+      if (p.tipo === 'chorreo') {
+        var avance = p.vy * dt;
+        p.recorrido += avance;
+        p.y += avance;
+        p.vy *= 0.985;
+        if (p.recorrido >= p.largoMax) {
+          sis.mancha(p.x, p.y, p.tam * 1.6, colorSangre(p.clase), 0.5);
+          continue;
+        }
+        vivas.push(p);
+        continue;
+      }
+
       var nx = p.x + p.vx * dt;
       var ny = p.y + p.vy * dt;
 
-      // Las gotas y los pedazos chocan con el mapa y dejan mancha en la pared
+      // Las gotas y los pedazos chocan con el mapa y dejan mancha
       if (mapa && (p.tipo === 'gota' || p.tipo === 'pedazo')) {
         if (solidoEn(mapa, nx, p.y) && !solidoEn(mapa, p.x, p.y)) {
-          if (gore > 0) sis.mancha(nx, p.y, (p.tam || 2) * 1.3, colorSangre(p.clase), 0.6);
+          if (gore > 0) {
+            sis.mancha(nx, p.y, (p.tam || 2) * 1.4, colorSangre(p.clase), 0.6);
+            // Contra una pared, la sangre escurre hacia abajo
+            if (Math.abs(p.vx) > 150 && Math.random() < 0.5) {
+              sis.chorrear(nx, p.y, 8 + Math.random() * 20, p.clase);
+            }
+          }
           p.vx *= -0.25;
           nx = p.x;
           p.vida = Math.min(p.vida, 0.25);
         }
         if (solidoEn(mapa, p.x, ny) && !solidoEn(mapa, p.x, p.y)) {
           if (p.vy > 0) {
-            if (gore > 0) sis.mancha(p.x, ny, (p.tam || 2) * 1.5, colorSangre(p.clase), 0.65);
-            if (p.tipo === 'pedazo' && Math.abs(p.vy) > 120) {
-              p.vy *= -0.32;
+            if (gore > 0) sis.mancha(p.x, ny, (p.tam || 2) * 1.6, colorSangre(p.clase), 0.65);
+            if (p.tipo === 'pedazo' && Math.abs(p.vy) > 140) {
+              // Pica una vez
+              p.vy *= -0.34;
               p.vx *= 0.6;
+              p.vrot *= 0.5;
               ny = p.y;
+            } else if (p.tipo === 'pedazo') {
+              // Se quedó: frena, se acuesta y espera a apagarse para quedar fijo
+              p.vy = 0;
+              p.vx *= 0.4;
+              p.vrot = 0;
+              p.apoyado = true;
+              p.mancha = false;
+              ny = p.y;
+              if (p.vida > 1.2) p.vida = 1.2;
             } else {
               p.vida = Math.min(p.vida, 0.12);
               p.vy = 0;
@@ -371,8 +642,8 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
             ny = p.y;
           }
         }
-        // Rastro de sangre en el aire para los pedazos que vuelan
-        if (p.rastro && Math.random() < 0.35) {
+        // Rastro en el aire de lo que vuela chorreando
+        if (p.rastro && !p.apoyado && Math.random() < 0.4) {
           sis.chorro(p.x, p.y, 0, p.clase);
         }
       }
@@ -406,6 +677,23 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
   }
 
   /* ---------------- Dibujo ---------------- */
+
+  /* Dos gradientes de fuego (núcleo caliente y núcleo tibio) creados una sola
+     vez en el círculo unitario; el ctx se encarga de moverlos y escalarlos. */
+  var gradFuego = {};
+
+  function gradienteFuego(ctx, caliente) {
+    var clave = caliente ? 'c' : 't';
+    var g = gradFuego[clave];
+    if (!g) {
+      g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, caliente ? 'rgba(255,250,225,0.95)' : 'rgba(255,190,110,0.85)');
+      g.addColorStop(0.45, 'rgba(255,150,50,0.65)');
+      g.addColorStop(1, 'rgba(120,40,10,0)');
+      gradFuego[clave] = g;
+    }
+    return g;
+  }
 
   /* Las manchas van debajo de todo lo demás del mundo. */
   sis.dibujarManchas = function (ctx) {
@@ -444,14 +732,13 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = Math.min(1, k * 1.4);
-        var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rf);
-        // De blanco al centro a rojo humo en el borde, según lo que le queda
-        g.addColorStop(0, k > 0.55 ? 'rgba(255,250,225,0.95)' : 'rgba(255,190,110,0.85)');
-        g.addColorStop(0.45, 'rgba(255,150,50,0.65)');
-        g.addColorStop(1, 'rgba(120,40,10,0)');
-        ctx.fillStyle = g;
+        // El gradiente se crea una vez en el origen y se mueve con el ctx:
+        // crearlo por partícula y por frame costaba más que dibujarlo
+        ctx.translate(p.x, p.y);
+        ctx.scale(rf, rf);
+        ctx.fillStyle = gradienteFuego(ctx, k > 0.55);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, rf, 0, Math.PI * 2);
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
@@ -492,42 +779,52 @@ G.crearEfectos = function (anchoMundo, altoMundo, nivelGore) {
       if (p.tipo === 'pedazo') {
         ctx.save();
         ctx.globalAlpha = Math.min(1, k * 1.6);
-        ctx.translate(Math.round(p.x), Math.round(p.y));
+        ctx.translate(p.x, p.y);
         ctx.rotate(p.rot || 0);
-        var t = p.tam;
-        ctx.fillStyle = p.color;
-        if (p.subtipo === 'tripa') {
-          // Tira alargada que ondula
-          ctx.fillRect(-t * 2, -1, t * 4, 2);
-          ctx.fillRect(-t * 2, -2, t, 2);
-          ctx.fillRect(t, 0, t, 2);
-          ctx.fillStyle = p.colorBorde;
-          ctx.fillRect(-t * 2, -1, t * 4, 1);
-        } else if (p.subtipo === 'hueso') {
-          ctx.fillRect(-t, -1, t * 2, 2);
-          ctx.fillRect(-t - 1, -2, 2, 4);
-          ctx.fillRect(t - 1, -2, 2, 4);
-        } else if (p.subtipo === 'organo') {
-          // Bulto redondeado
-          ctx.fillRect(-t, -t * 0.8, t * 2, t * 1.6);
-          ctx.fillRect(-t * 0.7, -t, t * 1.4, t * 2);
-          ctx.fillStyle = p.colorBorde;
-          ctx.fillRect(-t * 0.6, -t * 0.7, t * 0.8, 2);
-        } else {
-          ctx.fillRect(-t, -t * 0.7, t * 2, t * 1.4);
-          ctx.fillStyle = p.colorBorde || p.color;
-          ctx.fillRect(-t, -t * 0.7, t * 2, 1);
-        }
+        dibujarParte(ctx, p);
         ctx.restore();
         ctx.globalAlpha = 1;
         continue;
       }
 
-      // gota
+      if (p.tipo === 'chorreo') {
+        // Hilo que baja por la pared, con la gota gorda en la punta
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, k * 1.5);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.tam;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - p.recorrido);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.tam * 0.75, p.tam * 1.05, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
+      // Gota: se estira en la dirección en la que viaja, como una gota real
+      var vel = Math.hypot(p.vx || 0, p.vy || 0);
+      var estira = 1 + G.clamp(vel / 260, 0, 2.2);
+      ctx.save();
       ctx.globalAlpha = Math.min(1, k * 1.7);
+      ctx.translate(p.x, p.y);
+      if (vel > 30) ctx.rotate(Math.atan2(p.vy, p.vx));
       ctx.fillStyle = p.color;
-      var alto = p.tam + G.clamp(Math.abs(p.vy) / 130, 0, 3);
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.tam, Math.round(alto));
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.tam * 0.62 * estira, p.tam * 0.62, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Punto de luz: lo que la hace ver húmeda
+      if (p.tam > 1.4) {
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.beginPath();
+        ctx.ellipse(-p.tam * 0.15, -p.tam * 0.2, p.tam * 0.2, p.tam * 0.14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
       ctx.globalAlpha = 1;
     }
   };
