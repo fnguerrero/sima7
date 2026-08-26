@@ -1,5 +1,7 @@
 # SIMA-7
 
+> **Estado: Activo** — jugable y publicado, con mejoras en curso.
+
 Run and gun de plataformas 2D. Hace tres semanas la colonia minera SIMA-7 dejó de
 responder; la Compañía informó un derrumbe y cerró el expediente en cuarenta
 minutos. Bajás a confirmar la versión oficial con una cámara en el casco.
