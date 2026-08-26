@@ -79,21 +79,51 @@ G.hud = (function () {
       G.texto(ctx, String(partida.esquirlas).padStart(2, '0'), 228, 4, { size: 11 });
       G.texto(ctx, String(partida.puntaje).padStart(7, '0'), 214, 17, { size: 11, color: '#ffe27a' });
 
-      // --- Nivel ---
-      G.texto(ctx, 'SIMA ' + mundo.numero + '/' + G.niveles.total, W / 2 + 50, 4,
-              { size: 11, align: 'center', color: '#c8d2dc' });
-      G.texto(ctx, mundo.nombre, W / 2 + 50, 17,
-              { size: 9, align: 'center', color: mundo.paleta.acento });
+      // --- Nivel u oleada ---
+      if (mundo.horda) {
+        G.texto(ctx, 'OLEADA ' + Math.max(1, mundo.oleada), W / 2 + 50, 4,
+                { size: 11, align: 'center', color: '#ffcf5a' });
+        G.texto(ctx, mundo.pausaOleada > 0 ? 'entran en ' + Math.ceil(mundo.pausaOleada) : mundo.nombre,
+                W / 2 + 50, 17, { size: 9, align: 'center', color: mundo.paleta.acento });
+      } else {
+        G.texto(ctx, 'SIMA ' + mundo.numero + '/' + G.niveles.total, W / 2 + 50, 4,
+                { size: 11, align: 'center', color: '#c8d2dc' });
+        G.texto(ctx, mundo.nombre, W / 2 + 50, 17,
+                { size: 9, align: 'center', color: mundo.paleta.acento });
+      }
 
       // --- Tiempo ---
-      var seg = Math.max(0, Math.ceil(mundo.tiempo));
-      var apurado = seg <= 30;
-      G.texto(ctx, 'O2 ' + String(seg).padStart(3, '0'), W - 10, 4, {
-        size: 11, align: 'right',
-        color: apurado && Math.floor(mundo.t * 4) % 2 === 0 ? '#ff6b6b' : '#c8d2dc'
-      });
+      if (!mundo.horda) {
+        var seg = Math.max(0, Math.ceil(mundo.tiempo));
+        var apurado = seg <= 30;
+        G.texto(ctx, 'O2 ' + String(seg).padStart(3, '0'), W - 10, 4, {
+          size: 11, align: 'right',
+          color: apurado && Math.floor(mundo.t * 4) % 2 === 0 ? '#ff6b6b' : '#c8d2dc'
+        });
+      }
       G.texto(ctx, 'BAJAS ' + partida.bajas, W - 10, 17,
               { size: 9, align: 'right', color: '#98a2af' });
+
+      // --- Combo ---
+      if (partida.combo >= 2) {
+        var mult = mundo.multiplicador();
+        var kc = G.clamp(partida.comboT / G.COMBO_VENTANA, 0, 1);
+        var cx = W - 62, cy = 44;
+        var escala = 1 + G.clamp((partida.combo - 2) * 0.05, 0, 0.5);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(escala, escala);
+        G.texto(ctx, 'x' + partida.combo, 0, 0,
+                { size: 20, align: 'center', color: '#ffb03a', bold: true });
+        ctx.restore();
+        G.texto(ctx, mult.toFixed(1) + 'x puntos', cx, cy + 24,
+                { size: 8, align: 'center', color: '#c8d2dc' });
+        // Lo que queda de la ventana para encadenar
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(cx - 30, cy + 36, 60, 3);
+        ctx.fillStyle = '#ffb03a';
+        ctx.fillRect(cx - 30, cy + 36, Math.round(60 * kc), 3);
+      }
 
       // --- Arma activa ---
       var def = j.armaDef();

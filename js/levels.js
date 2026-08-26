@@ -503,6 +503,77 @@ G.niveles = (function () {
     }
   ];
 
+  /* ---------------- Modo horda ----------------
+     Una arena cerrada, sin salida y sin oxígeno contado: aguantar oleadas hasta
+     que te maten. Es el mismo motor, con el mapa armado para pelear: parapetos
+     bajos, dos alturas y espacio para correr de punta a punta. */
+  var arenaDef = {
+    nombre: 'La arena', capa: 'nucleo', tiempo: 9999, ancho: 52, horda: true,
+    suelo: [[0, 52, 11]],
+    techo: [[0, 52, 0]],
+    poner: [
+      [25, 10, 'P'],
+      // Parapetos bajos para cubrirse
+      [8, 10, 'SS'], [42, 10, 'SS'],
+      [18, 10, 'S'], [33, 10, 'S'],
+      // Dos niveles de pasarelas
+      [6, 7, '======'],
+      [22, 6, '======'],
+      [40, 7, '======'],
+      [14, 4, '===='],
+      [34, 4, '===='],
+      // Paredes de los extremos, para que no se salga
+      [0, 8, 'SS'], [50, 8, 'SS'],
+      [0, 7, 'SS'], [50, 7, 'SS'],
+      [0, 6, 'SS'], [50, 6, 'SS'],
+      [0, 5, 'SS'], [50, 5, 'SS'],
+      [0, 4, 'SS'], [50, 4, 'SS'],
+      [0, 3, 'SS'], [50, 3, 'SS'],
+      [0, 2, 'SS'], [50, 2, 'SS'],
+      [0, 1, 'SS'], [50, 1, 'SS']
+    ]
+  };
+
+  var arena = {
+    numero: 0,
+    nombre: arenaDef.nombre,
+    capa: arenaDef.capa,
+    tiempo: arenaDef.tiempo,
+    ancho: arenaDef.ancho,
+    horda: true,
+    mapa: construir(arenaDef)
+  };
+
+  /* Dónde entran los que van llegando y qué trae cada oleada.
+     La curva sube en dos ejes: más gente y gente peor. */
+  var PUNTOS_SPAWN = [
+    [3, 10], [48, 10], [7, 6], [44, 6], [24, 5], [16, 3], [35, 3]
+  ];
+
+  function oleada(n) {
+    var tipos = ['saqueador'];
+    if (n >= 2) tipos.push('guardia');
+    if (n >= 4) tipos.push('escopetero');
+    if (n >= 6) tipos.push('jetpack');
+    if (n >= 8) tipos.push('francotirador');
+    if (n >= 11) tipos.push('pesado');
+
+    var cantidad = Math.min(14, 2 + Math.floor(n * 0.9));
+    var lista = [];
+    for (var i = 0; i < cantidad; i++) {
+      // Cuanto más avanzada la oleada, más chance de que salga lo peor
+      var idx = Math.min(tipos.length - 1,
+                         Math.floor(Math.pow(Math.random(), 1.6) * tipos.length * (0.5 + n / 12)));
+      lista.push(tipos[G.clamp(idx, 0, tipos.length - 1)]);
+    }
+    return {
+      numero: n,
+      enemigos: lista,
+      // Cada tres oleadas cae algo para levantar
+      premio: n % 3 === 0 ? (n % 6 === 0 ? 'botiquin' : (n % 9 === 0 ? 'ametralladora' : 'escopeta')) : null
+    };
+  }
+
   var construidos = defs.map(function (d, i) {
     return {
       numero: i + 1,
@@ -523,7 +594,13 @@ G.niveles = (function () {
 
   return {
     total: construidos.length,
-    obtener: function (n) { return construidos[G.clamp(n, 1, construidos.length) - 1]; },
+    arena: arena,
+    oleada: oleada,
+    puntosSpawn: PUNTOS_SPAWN,
+    obtener: function (n) {
+      if (n === 0) return arena;
+      return construidos[G.clamp(n, 1, construidos.length) - 1];
+    },
     todos: function () { return construidos; },
     tituloCapa: function (capa) { return titulosCapa[capa] || ''; },
     construir: construir

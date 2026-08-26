@@ -11,7 +11,9 @@ G.save = (function () {
     gore: 2,            // 0 apagado · 1 moderado · 2 completo
     esquema: 'normal',  // normal | alternativo
     introVista: false,  // si ya vio la introducción de la historia
-    mejorTiempo: {}     // por nivel, en segundos
+    mejorTiempo: {},    // por nivel, en segundos
+    mejorRango: {},     // por nivel: letra D..S
+    mejorOleada: 0      // modo horda
   };
 
   function leer() {
@@ -26,7 +28,9 @@ G.save = (function () {
         gore: datos.gore == null ? 2 : G.clamp(parseInt(datos.gore, 10), 0, 2),
         esquema: datos.esquema === 'alternativo' ? 'alternativo' : 'normal',
         introVista: !!datos.introVista,
-        mejorTiempo: (datos.mejorTiempo && typeof datos.mejorTiempo === 'object') ? datos.mejorTiempo : {}
+        mejorTiempo: (datos.mejorTiempo && typeof datos.mejorTiempo === 'object') ? datos.mejorTiempo : {},
+        mejorRango: (datos.mejorRango && typeof datos.mejorRango === 'object') ? datos.mejorRango : {},
+        mejorOleada: parseInt(datos.mejorOleada, 10) || 0
       };
     } catch (e) {
       return JSON.parse(JSON.stringify(predeterminado));
@@ -64,6 +68,22 @@ G.save = (function () {
         estado.mejorTiempo[nivel] = Math.round(segundos * 10) / 10;
         escribir(estado);
       }
+    },
+    registrarRango: function (nivel, letra) {
+      if (G.ranking.esMejor(letra, estado.mejorRango[nivel])) {
+        estado.mejorRango[nivel] = letra;
+        escribir(estado);
+        return true;
+      }
+      return false;
+    },
+    registrarOleada: function (oleada) {
+      if (oleada > estado.mejorOleada) {
+        estado.mejorOleada = oleada;
+        escribir(estado);
+        return true;
+      }
+      return false;
     },
     nivelGore: function () { return estado.gore; },
     esquema: function () { return estado.esquema; },

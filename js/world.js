@@ -38,7 +38,14 @@ G.crearMundo = function (numeroNivel, partida) {
     congelado: 0,        // hit stop: el mundo se detiene, la pantalla no
     lenta: 0,            // cámara lenta breve al limpiar una zona
     cadaveres: [],
-    control: null        // baliza activada en este nivel
+    control: null,       // baliza activada en este nivel
+    enemigosNivel: 0,
+    bajasNivel: 0,
+    danoRecibido: 0,
+    horda: !!nivelDef.horda,
+    // Al perder un traje se retoma una oleada antes, no desde cero
+    oleada: nivelDef.horda ? Math.max(0, (partida.oleadaAlcanzada || 1) - 1) : 0,
+    pausaOleada: 0
   };
 
   G.capaActual = mundo.paleta;
@@ -59,6 +66,7 @@ G.crearMundo = function (numeroNivel, partida) {
       if (ent) {
         mundo.entidades.push(ent);
         if (tipo === 'esquirla') mundo.esquirlasNivel++;
+        if (ent.enemigo) mundo.enemigosNivel++;
         if (ent.esJefe) mundo.jefe = ent;
       }
     }
@@ -128,6 +136,27 @@ G.crearMundo = function (numeroNivel, partida) {
     if (x != null) mundo.efectos.texto(x, y, '+' + n, '#ffe27a');
   };
 
+  /* Multiplicador actual del combo: 1x sin combo, hasta 5x encadenando. */
+  mundo.multiplicador = function () {
+    if (!partida.combo || partida.combo < 2) return 1;
+    return Math.min(G.COMBO_MAX_MULT, 1 + (partida.combo - 1) * 0.5);
+  };
+
+  function sumarBaja(x, y, puntos) {
+    partida.comboT = G.COMBO_VENTANA;
+    partida.combo = (partida.combo || 0) + 1;
+    if (partida.combo > (partida.mejorCombo || 0)) partida.mejorCombo = partida.combo;
+
+    var mult = mundo.multiplicador();
+    var total = Math.round(puntos * mult);
+    partida.puntaje += total;
+    mundo.efectos.texto(x, y, '+' + total, mult > 1 ? '#ffb03a' : '#ffe27a');
+    if (partida.combo >= 2) {
+      mundo.efectos.texto(x, y - 16, 'x' + partida.combo, '#ff8a3a');
+      G.audio.combo(partida.combo);
+    }
+  }
+
   mundo.sumarEsquirla = function () {
     partida.esquirlas++;
     if (partida.esquirlas >= 100) {
@@ -143,12 +172,63 @@ G.crearMundo = function (numeroNivel, partida) {
 
   mundo.golpeVisual = function (fuerza) {
     mundo.flashDano = Math.max(mundo.flashDano, fuerza);
+    // Que te peguen corta la racha: el combo premia jugar limpio, no rápido nomás
+    partida.combo = 0;
+    partida.comboT = 0;
+    mundo.danoRecibido++;
   };
 
   /* Hit stop: unos milisegundos sin simular. Es lo que hace que un disparo se
      sienta como un impacto y no como restar un número. */
   mundo.congelar = function (seg) {
     mundo.congelado = Math.max(mundo.congelado, seg);
+  };
+
+  /* Un disparo o un grito pone en alerta a todos los que están cerca: el equipo
+     de limpieza se avisa entre sí, no pelea de a uno. */
+  mundo.alertarZona = function (x, y, radio, quienNo) {
+    for (var i = 0; i < mundo.entidades.length; i++) {
+      var e = mundo.entidades[i];
+      if (!e.enemigo || !e.viva || e === quienNo) continue;
+      if (Math.abs((e.x + e.w / 2) - x) > radio) continue;
+      if (Math.abs((e.y + e.h / 2) - y) > radio * 0.8) continue;
+      e.alerta = Math.max(e.alerta || 0, 2.4);
+      e.avisado = true;
+      if (e.x + e.w / 2 < mundo.jugador.x) e.dir = 1; else e.dir = -1;
+    }
+  };
+
+  /* ¿Viene una bala del jugador hacia esta entidad, y le va a llegar dentro de
+     `anticipo` segundos? Se resuelve por tiempo de impacto y no por posición
+     futura: una bala rápida ya habría pasado de largo en ese instante. */
+  mundo.balaEnCurso = function (e, anticipo) {
+    var lista = mundo.balas.lista;
+    for (var i = 0; i < lista.length; i++) {
+      var b = lista[i];
+      if (!b.deJugador || !b.vx) continue;
+      // Borde por el que entraría, según de qué lado viene
+      var objetivoX = b.vx > 0 ? e.x - 4 : e.x + e.w + 4;
+      var t = (objetivoX - b.x) / b.vx;
+      if (t < 0 || t > anticipo) continue;
+      var y = b.y + b.vy * t;
+      if (y < e.y - 10 || y > e.y + e.h + 10) continue;
+      return b;
+    }
+    return null;
+  };
+
+  /* ¿Hay algo sólido a la altura del cuerpo, del lado del jugador? Sirve de
+     parapeto: el enemigo se pega ahí y se asoma para disparar. */
+  mundo.coberturaCerca = function (e, dirJugador, maxTiles) {
+    var filaCuerpo = Math.floor((e.y + e.h * 0.5) / T);
+    var colE = Math.floor((e.x + e.w / 2) / T);
+    for (var d = 1; d <= (maxTiles || 4); d++) {
+      var c = colE + dirJugador * d;
+      if (G.tiles.esSolido(charEn(c, filaCuerpo))) {
+        return { col: c, x: c * T + (dirJugador > 0 ? -e.w - 2 : T + 2) };
+      }
+    }
+    return null;
   };
 
   mundo.fijarControl = function (col, fila) {
@@ -182,6 +262,8 @@ G.crearMundo = function (numeroNivel, partida) {
     if (!e.viva) return;
     e.vida -= dano;
     e.flash = 0.14;
+    // Un tiro se escucha: los de al lado dejan de patrullar
+    mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 260, e);
     e.empuje = (vx > 0 ? 1 : -1) * (dano >= G.CARGA_DANO ? 220 : 70);
 
     var cx = e.x + e.w / 2, cy = e.y + e.h / 2;
@@ -205,7 +287,8 @@ G.crearMundo = function (numeroNivel, partida) {
     e.quitar = true;
     mundo.jugador.bajas++;
     partida.bajas++;
-    mundo.sumarPuntos(e.puntos || 100, cx, e.y);
+    mundo.bajasNivel++;
+    sumarBaja(cx, e.y, e.puntos || 100);
     mundo.jugador.cargarAdrenalina(e.esJefe ? 100 : 10);
 
     var exceso = dano >= G.CARGA_DANO || dano >= 99;
@@ -374,6 +457,46 @@ G.crearMundo = function (numeroNivel, partida) {
     }
   }
 
+  /* ---- Modo horda ----
+     No hay salida: hay oleadas. Entre una y otra hay un respiro corto para
+     recuperar posición, y cada tanto cae algo para levantar. */
+  function lanzarOleada() {
+    mundo.oleada++;
+    partida.oleadaAlcanzada = mundo.oleada;
+    var def = G.niveles.oleada(mundo.oleada);
+    var puntos = G.niveles.puntosSpawn;
+
+    def.enemigos.forEach(function (tipo, i) {
+      var p = puntos[(i + mundo.oleada) % puntos.length];
+      var e = G.entidades.crear(tipo, p[0], p[1]);
+      if (!e) return;
+      e.activa = true;
+      e.alerta = 2.5;
+      e.avisado = true;
+      mundo.entidades.push(e);
+      mundo.enemigosNivel++;
+      mundo.efectos.destello(e.x + e.w / 2, e.y + e.h / 2, 50, '#ff5a3c', 0.3);
+      mundo.efectos.humo(e.x + e.w / 2, e.y + e.h / 2, 5);
+    });
+
+    if (def.premio) {
+      var item = G.entidades.crear(def.premio, 26, 9);
+      if (item) { item.activa = true; mundo.entidades.push(item); }
+    }
+
+    mundo.camara.sacudir(0.2, 3);
+    G.audio.oleada();
+  }
+  mundo.lanzarOleada = lanzarOleada;
+
+  function quedanEnemigos() {
+    for (var i = 0; i < mundo.entidades.length; i++) {
+      var e = mundo.entidades[i];
+      if (e.enemigo && e.viva && !e.quitar) return true;
+    }
+    return false;
+  }
+
   function completarNivel() {
     if (mundo.estado !== 'jugando') return;
     mundo.estado = 'completado';
@@ -412,8 +535,30 @@ G.crearMundo = function (numeroNivel, partida) {
     }
 
     mundo.tiempoJugado += dt;
-    mundo.tiempo -= dt;
-    if (mundo.tiempo <= 0) {
+
+    if (mundo.horda) {
+      // El oxígeno no corre en la arena: lo que aprieta son las oleadas
+      mundo.tiempo = 999;
+      if (mundo.pausaOleada > 0) {
+        mundo.pausaOleada -= dt;
+        if (mundo.pausaOleada <= 0) lanzarOleada();
+      } else if (!quedanEnemigos()) {
+        mundo.pausaOleada = mundo.oleada === 0 ? 1.2 : 3;
+        if (mundo.oleada > 0) {
+          mundo.jugador.curar(1);
+          mundo.efectos.texto(mundo.jugador.x + 9, mundo.jugador.y - 14,
+                              'OLEADA ' + mundo.oleada + ' LIMPIA', '#4be08a');
+          G.audio.zonaLimpia();
+        }
+      }
+    }
+
+    if (partida.comboT > 0) {
+      partida.comboT -= dt;
+      if (partida.comboT <= 0) partida.combo = 0;
+    }
+    if (!mundo.horda) mundo.tiempo -= dt;
+    if (!mundo.horda && mundo.tiempo <= 0) {
       mundo.tiempo = 0;
       mundo.jugador.vida = 0;
       mundo.jugador.morir(mundo);

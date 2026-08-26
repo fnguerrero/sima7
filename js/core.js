@@ -57,6 +57,12 @@ G.ADRENALINA_GASTO = 30;  // por segundo activa
 G.ADRENALINA_REGEN = 4.2; // por segundo, sola
 G.ADRENALINA_MINIMA = 25; // hace falta este mínimo para poder activarla
 
+/* ---------------- Combo ----------------
+   Matar seguido multiplica lo que vale cada baja. La ventana es corta a
+   propósito: el combo tiene que empujar a avanzar, no a esperar. */
+G.COMBO_VENTANA = 2.6;    // seg para encadenar la siguiente baja
+G.COMBO_MAX_MULT = 5;
+
 /* ---------------- Impacto ----------------
    El congelamiento al matar es lo que hace que un disparo se sienta. Son pocos
    milisegundos: el mundo se detiene, la pantalla no. */

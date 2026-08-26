@@ -79,6 +79,19 @@ paredes, los cuerpos quedan tirados con su charco y las manchas se acumulan hast
 el final del nivel. Cada muerte congela el mundo unos milisegundos, y la última
 baja de una zona entra en cámara lenta.
 
+**Matar seguido multiplica.** Cada baja abre una ventana de 2,6 segundos para la
+siguiente; encadenando llegás a 5x puntos. Que te peguen corta la racha, así que
+el combo premia jugar limpio y no solo rápido.
+
+**Cada nivel se califica de D a S** al terminarlo, con cuatro cosas que se pueden
+mejorar por separado: cuánto tardaste, cuántos golpes comiste, qué porcentaje del
+sector despejaste y cuál fue tu mejor racha. La mejor letra de cada nivel queda
+guardada y se ve en la pantalla de selección.
+
+**Modo horda**: una arena cerrada, sin salida y sin oxígeno contado. Oleadas que
+crecen en cantidad y en calaña; cada tres cae un arma o un botiquín. Guarda la
+mejor oleada alcanzada.
+
 ## Las cuatro capas
 
 | # | Nivel | Capa | Qué introduce |
@@ -97,6 +110,10 @@ baja de una zona entra en cámara lenta.
 ## El equipo de limpieza
 
 Todos caen de un tiro. Lo que cambia es cómo te obligan a moverte.
+
+No pelean de a uno: un disparo pone en alerta a todos los que están cerca, y los
+que tienen arma buscan parapeto, se asoman por turnos, retroceden si los apurás y
+saltan cuando ven venir un balazo.
 
 - **Saqueador** — sin arma de fuego, va directo al cuerpo. Rápido y suicida.
 - **Guardia** — patrulla, te ve, se frena y dispara.
@@ -125,9 +142,11 @@ js/audio.js         efectos sintetizados: tonos, ruido filtrado y ambiente
 js/save.js          progreso en localStorage
 js/story.js         los textos: introducción, registros y final
 js/weapons.js       pistola, escopeta y ametralladora
+js/ranking.js       la calificación de D a S de cada nivel
+js/music.js         bajo y percusión por capa, reactivos a lo que pasa
 js/tiles.js         catálogo de tiles y su dibujo
 js/physics.js       colisión AABB contra el tilemap
-js/levels.js        los 10 niveles
+js/levels.js        los 10 niveles, la arena y las oleadas del modo horda
 js/validator.js     verifica que cada nivel sea completable
 js/gore.js          sangre, vísceras, manchas persistentes y pedazos
 js/bullets.js       proyectiles del jugador y de los enemigos

@@ -692,6 +692,169 @@
   });
 
   // =====================================================================
+  grupo('Combo y calificación');
+
+  test('encadenar bajas sube el multiplicador', function () {
+    var m = mundoDePrueba(1);
+    igual(m.multiplicador(), 1, 'multiplicador inicial');
+    var es = m.entidades.filter(function (e) { return e.enemigo; }).slice(0, 3);
+    afirmar(es.length >= 3, 'el nivel 1 no tiene 3 enemigos');
+    es.forEach(function (e) { m.danarEnemigo(e, 2, 100, 0); });
+    igual(m.partida.combo, 3, 'combo');
+    afirmar(m.multiplicador() > 1, 'el multiplicador no subió');
+    return 'x' + m.partida.combo + ' da ' + m.multiplicador() + ' de puntaje';
+  });
+
+  test('el combo se corta si te pegan', function () {
+    var m = mundoDePrueba(1);
+    var es = m.entidades.filter(function (e) { return e.enemigo; }).slice(0, 2);
+    es.forEach(function (e) { m.danarEnemigo(e, 2, 100, 0); });
+    afirmar(m.partida.combo >= 2, 'no arrancó el combo');
+    m.jugador.recibirDano(1, 1, m);
+    igual(m.partida.combo, 0, 'combo tras el golpe');
+  });
+
+  test('el combo se enfría solo', function () {
+    var m = mundoDePrueba(1);
+    var e = primerEnemigo(m);
+    m.danarEnemigo(e, 2, 100, 0);
+    afirmar(m.partida.combo > 0, 'no arrancó');
+    for (var i = 0; i < 400 && m.partida.combo > 0; i++) {
+      m.congelado = 0;
+      m.actualizar(1 / 60);
+    }
+    igual(m.partida.combo, 0, 'combo tras la ventana');
+  });
+
+  test('una partida perfecta saca S y una mala saca D', function () {
+    var m = mundoDePrueba(1);
+    m.tiempoJugado = 20; m.danoRecibido = 0; m.bajasNivel = m.enemigosNivel;
+    igual(G.ranking.evaluar(m, { mejorCombo: 6 }).rango.letra, 'S');
+
+    var m2 = mundoDePrueba(1);
+    m2.tiempoJugado = 900; m2.danoRecibido = 9; m2.bajasNivel = 0;
+    igual(G.ranking.evaluar(m2, { mejorCombo: 0 }).rango.letra, 'D');
+  });
+
+  test('el ranking ordena bien las letras', function () {
+    afirmar(G.ranking.esMejor('S', 'A'), 'S debería superar a A');
+    afirmar(!G.ranking.esMejor('C', 'B'), 'C no debería superar a B');
+    afirmar(G.ranking.esMejor('D', null), 'sin marca previa siempre es mejor');
+  });
+
+  // =====================================================================
+  grupo('Modo horda');
+
+  test('la arena existe y no tiene salida', function () {
+    var a = G.niveles.arena;
+    afirmar(a && a.horda, 'no hay arena');
+    igual(a.mapa.length, G.ROWS);
+    afirmar(!a.mapa.some(function (l) { return l.indexOf('F') >= 0; }), 'la arena tiene salida');
+  });
+
+  test('las oleadas crecen en cantidad y en variedad', function () {
+    var o1 = G.niveles.oleada(1);
+    var o10 = G.niveles.oleada(10);
+    afirmar(o10.enemigos.length > o1.enemigos.length, 'la oleada 10 no trae más gente');
+    return o1.enemigos.length + ' a ' + o10.enemigos.length + ' enemigos';
+  });
+
+  function partidaHorda() {
+    return { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: 0, control: null, combo: 0 };
+  }
+
+  test('la horda lanza la primera oleada sola', function () {
+    var m = G.crearMundo(0, partidaHorda());
+    afirmar(m.horda, 'el mundo no está en modo horda');
+    for (var i = 0; i < 180; i++) { m.congelado = 0; m.actualizar(1 / 60); }
+    afirmar(m.oleada >= 1, 'no arrancó ninguna oleada');
+    afirmar(m.entidades.filter(function (e) { return e.enemigo; }).length > 0, 'no entró nadie');
+  });
+
+  test('limpiar la oleada trae la siguiente', function () {
+    var m = G.crearMundo(0, partidaHorda());
+    m.jugador.inmune = 1e9;
+    for (var i = 0; i < 180; i++) { m.congelado = 0; m.actualizar(1 / 60); }
+    var primera = m.oleada;
+    m.entidades.filter(function (e) { return e.enemigo && e.viva; })
+     .forEach(function (e) { m.danarEnemigo(e, 2, 100, 0); });
+    for (var k = 0; k < 300; k++) { m.congelado = 0; m.actualizar(1 / 60); }
+    afirmar(m.oleada > primera, 'no avanzó de oleada');
+    return 'oleada ' + primera + ' a ' + m.oleada;
+  });
+
+  test('en la arena el oxígeno no corre', function () {
+    var m = G.crearMundo(0, partidaHorda());
+    m.jugador.inmune = 1e9;
+    for (var i = 0; i < 240; i++) { m.congelado = 0; m.actualizar(1 / 60); }
+    afirmar(m.tiempo > 100, 'el tiempo bajó a ' + m.tiempo);
+  });
+
+  // =====================================================================
+  grupo('Inteligencia');
+
+  test('un disparo pone en alerta a los de al lado', function () {
+    var m = mundoDePrueba(1);
+    var a = G.entidades.crear('guardia', 20, 10);
+    var b = G.entidades.crear('guardia', 22, 10);
+    a.activa = true; b.activa = true;
+    m.entidades.push(a); m.entidades.push(b);
+    igual(b.alerta, 0, 'alerta inicial');
+    m.danarEnemigo(a, 2, 100, 0);
+    afirmar(b.alerta > 0, 'el de al lado no se enteró');
+  });
+
+  test('el guardia detecta parapetos', function () {
+    var m = mundoDePrueba(1);
+    afirmar(typeof m.coberturaCerca === 'function', 'falta coberturaCerca');
+    m.ponerChar(12, 10, 'S');
+    var e = G.entidades.crear('guardia', 10, 10);
+    e.activa = true;
+    afirmar(m.coberturaCerca(e, 1, 4), 'no encontró el parapeto');
+  });
+
+  test('el enemigo ve venir la bala', function () {
+    var m = mundoDePrueba(1);
+    var e = G.entidades.crear('guardia', 20, 10);
+    e.activa = true;
+    m.entidades.push(e);
+    afirmar(!m.balaEnCurso(e, 0.2), 'detectó una bala que no existe');
+    m.balas.agregar(G.crearBala('plasma', e.x - 60, e.y + e.h / 2, 400, 0, { deJugador: true }));
+    afirmar(m.balaEnCurso(e, 0.3), 'no vio venir el disparo');
+  });
+
+  test('el francotirador no dispara a quemarropa', function () {
+    var m = mundoDePrueba(4);
+    var e = G.entidades.crear('francotirador', 20, 10);
+    e.activa = true;
+    m.entidades.push(e);
+    m.jugador.x = e.x + 30;
+    m.jugador.y = e.y;
+    e.cargando = 0.5;
+    e.actualizar(1 / 60, m);
+    igual(e.cargando, 0, 'siguió cargando el tiro con el jugador encima');
+  });
+
+  // =====================================================================
+  grupo('Música');
+
+  test('hay un patrón por capa y uno para el jefe', function () {
+    var p = G.musica.patrones;
+    ['colonia', 'infectado', 'ruinas', 'nucleo', 'jefe'].forEach(function (k) {
+      afirmar(p[k], 'falta el patrón de ' + k);
+      igual(p[k].bajo.length, 8, 'pasos del bajo de ' + k);
+      igual(p[k].kick.length, 8, 'pasos del bombo de ' + k);
+    });
+  });
+
+  test('cada capa tiene su tempo y su tonalidad', function () {
+    var p = G.musica.patrones;
+    afirmar(p.nucleo.bpm > p.ruinas.bpm, 'el núcleo no es más rápido que las ruinas');
+    afirmar(p.jefe.raiz < p.colonia.raiz, 'el jefe no suena más grave');
+    return p.ruinas.bpm + ' a ' + p.jefe.bpm + ' bpm';
+  });
+
+  // =====================================================================
   grupo('Progreso');
 
   test('el nivel de sangre cicla entre los tres modos', function () {

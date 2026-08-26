@@ -220,6 +220,11 @@ G.pantallas = (function () {
           G.texto(ctx, mejor.toFixed(1) + 's', cx + cw / 2, cy + 51,
                   { size: 8, align: 'center', color: '#8c99a5' });
         }
+        var rango = progreso.mejorRango && progreso.mejorRango[i + 1];
+        if (abierto && rango) {
+          G.texto(ctx, rango, cx + cw - 14, cy + 8,
+                  { size: 14, align: 'center', color: G.ranking.color(rango), bold: true });
+        }
       }
 
       var elegida = G.niveles.obtener(sel + 1);
@@ -299,47 +304,85 @@ G.pantallas = (function () {
       }
     },
 
-    /* Fin de nivel: resumen + el registro que dejó alguien ahí abajo. */
-    nivelOk: function (ctx, t, mundo, partida, avanceTexto) {
-      velo(ctx, 0.62);
-      G.texto(ctx, 'SECTOR DESPEJADO', W / 2, 26,
-              { size: 19, align: 'center', color: '#4be08a', bold: true });
-      G.texto(ctx, 'SIMA ' + mundo.numero + ' · ' + mundo.nombre, W / 2, 50,
-              { size: 11, align: 'center', color: mundo.paleta.acento });
+    /* Fin de nivel: calificación, resumen y el registro que quedó ahí abajo. */
+    nivelOk: function (ctx, t, mundo, partida, avanceTexto, resultado) {
+      velo(ctx, 0.66);
+      G.texto(ctx, 'SECTOR DESPEJADO', W / 2, 18,
+              { size: 17, align: 'center', color: '#4be08a', bold: true });
+      G.texto(ctx, 'SIMA ' + mundo.numero + ' · ' + mundo.nombre, W / 2, 38,
+              { size: 10, align: 'center', color: mundo.paleta.acento });
 
-      var y = 76;
-      [['Puntaje', partida.puntaje],
-       ['Esquirlas', partida.esquirlas],
-       ['Bajas', partida.bajas],
-       ['Tiempo', mundo.tiempoJugado.toFixed(1) + 's']].forEach(function (f) {
-        G.texto(ctx, f[0], W / 2 - 10, y, { size: 11, align: 'right', color: '#8c99a5' });
-        G.texto(ctx, String(f[1]), W / 2 + 10, y, { size: 11, align: 'left' });
-        y += 17;
-      });
+      // --- Calificación ---
+      if (resultado) {
+        var rx = 92, ry = 92;
+        var pulso = 1 + Math.abs(Math.sin(t * 3)) * 0.06;
+        ctx.save();
+        ctx.translate(rx, ry);
+        ctx.scale(pulso, pulso);
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 62px "Consolas", "Courier New", monospace';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillText(resultado.rango.letra, 3, -28);
+        ctx.fillStyle = resultado.rango.color;
+        ctx.fillText(resultado.rango.letra, 0, -31);
+        ctx.textAlign = 'left';
+        ctx.restore();
+        G.texto(ctx, resultado.rango.texto, rx, ry + 22,
+                { size: 10, align: 'center', color: resultado.rango.color });
+        if (resultado.record) {
+          G.texto(ctx, '¡marca nueva!', rx, ry + 38,
+                  { size: 9, align: 'center', color: '#ffcf5a' });
+        }
+
+        // Desglose: qué sumó y qué no
+        var dy = 60;
+        resultado.detalle.forEach(function (d) {
+          var col = d.puntos > 0 ? '#c3ced8' : '#66727d';
+          G.texto(ctx, d.que, 196, dy, { size: 10, color: '#8c99a5' });
+          G.texto(ctx, d.valor, 360, dy, { size: 10, align: 'right', color: col });
+          var estrellas = d.puntos === 2 ? '++' : (d.puntos === 1 ? '+' : '·');
+          G.texto(ctx, estrellas, 384, dy, { size: 10, color: d.puntos ? '#4be08a' : '#4d5761' });
+          if (d.ref) G.texto(ctx, d.ref, 404, dy, { size: 9, color: '#66727d' });
+          dy += 18;
+        });
+        G.texto(ctx, 'Puntaje ' + partida.puntaje, 196, dy + 4,
+                { size: 11, color: '#ffe27a' });
+      }
 
       var reg = G.historia.registro(mundo.numero);
       if (reg) {
-        var x = 46, ry = 152, w = W - 92, h = 78;
-        terminal(ctx, x, ry, w, h, 'GRABACIÓN RECUPERADA · ' + reg.codigo);
-        tipear(ctx, partir([reg.texto], 58), x + 12, ry + 24,
+        var x = 40, ry2 = 176, w = W - 80, h = 76;
+        terminal(ctx, x, ry2, w, h, 'GRABACIÓN RECUPERADA · ' + reg.codigo);
+        tipear(ctx, partir([reg.texto], 58), x + 12, ry2 + 24,
                avanceTexto == null ? 1 : avanceTexto, { alto: 18, size: 11 });
       }
 
       if (Math.floor(t * 2) % 2 === 0) {
-        G.texto(ctx, 'Enter para seguir bajando', W / 2, H - 30,
+        G.texto(ctx, 'Enter para seguir bajando', W / 2, H - 26,
                 { size: 11, align: 'center', color: '#ffcf5a' });
       }
     },
 
-    gameOver: function (ctx, t, partida) {
+    gameOver: function (ctx, t, partida, mundo) {
       velo(ctx, 0.78);
-      G.texto(ctx, 'FIN DEL DESCENSO', W / 2, 100,
+      var enHorda = mundo && mundo.horda;
+      G.texto(ctx, enHorda ? 'TE PASARON POR ENCIMA' : 'FIN DEL DESCENSO', W / 2, 100,
               { size: 26, align: 'center', color: '#e03a44', bold: true });
-      G.texto(ctx, 'La Compañía va a informar un segundo derrumbe.', W / 2, 138,
-              { size: 10, align: 'center', color: '#8c99a5' });
-      G.texto(ctx, 'Puntaje final: ' + partida.puntaje, W / 2, 166, { size: 12, align: 'center' });
-      G.texto(ctx, 'Bajas: ' + partida.bajas, W / 2, 186,
-              { size: 11, align: 'center', color: '#8c99a5' });
+      if (enHorda) {
+        G.texto(ctx, 'Aguantaste hasta la oleada ' + mundo.oleada, W / 2, 138,
+                { size: 12, align: 'center', color: '#ffcf5a' });
+        var mejor = G.save.obtener().mejorOleada;
+        if (mejor) {
+          G.texto(ctx, 'tu mejor marca: oleada ' + mejor, W / 2, 156,
+                  { size: 10, align: 'center', color: '#8c99a5' });
+        }
+      } else {
+        G.texto(ctx, 'La Compañía va a informar un segundo derrumbe.', W / 2, 138,
+                { size: 10, align: 'center', color: '#8c99a5' });
+      }
+      G.texto(ctx, 'Puntaje final: ' + partida.puntaje, W / 2, 178, { size: 12, align: 'center' });
+      G.texto(ctx, 'Bajas: ' + partida.bajas + ' · mejor racha x' + (partida.mejorCombo || 0),
+              W / 2, 198, { size: 11, align: 'center', color: '#8c99a5' });
       if (Math.floor(t * 2) % 2 === 0) {
         G.texto(ctx, 'Enter para volver al menú', W / 2, 222,
                 { size: 11, align: 'center', color: '#ffcf5a' });

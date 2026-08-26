@@ -104,6 +104,11 @@ G.audio = (function () {
       var c = asegurarCtx();
       if (c && c.state === 'suspended') c.resume();
     },
+    /* La música vive en su propio módulo pero comparte contexto y salida:
+       así el mute y el volumen general valen para todo. */
+    contexto: function () { return asegurarCtx(); },
+    salida: function () { asegurarCtx(); return master; },
+    ruido: ruido,
     alternarMute: function () {
       silenciado = !silenciado;
       if (master) master.gain.value = silenciado ? 0 : 0.85;
@@ -157,7 +162,13 @@ G.audio = (function () {
     sinMunicion: function () { tono(320, 200, 0.05, 'square', 0.05); golpe(0.05, 5000, 2000, 0.05, 'highpass'); },
     recogerArma: function () { melodia([[392, 0.07], [587, 0.07], [784, 0.14]], 'square', 0.08); },
     control:  function () { melodia([[523, 0.09], [698, 0.09], [880, 0.22]], 'triangle', 0.10); },
+    oleada:   function () { melodia([[196, 0.14], [147, 0.14], [98, 0.3]], 'sawtooth', 0.11); golpe(0.4, 1200, 90, 0.16); },
     zonaLimpia: function () { melodia([[660, 0.08], [880, 0.16]], 'sine', 0.07); },
+    combo: function (n) {
+      // Cada eslabón suena más agudo: se escucha la racha subir
+      var base = 520 * Math.pow(1.09, Math.min(n, 12));
+      tono(base, base * 1.5, 0.08, 'triangle', 0.07);
+    },
     disparoEnemigo: function () { tono(430, 160, 0.06, 'square', 0.045); golpe(0.06, 2200, 600, 0.06, 'bandpass'); },
     escopetaEnemiga: function () { golpe(0.18, 1900, 150, 0.15); tono(150, 55, 0.15, 'sawtooth', 0.07); },
     francotirador: function () { tono(900, 120, 0.12, 'square', 0.08); golpe(0.16, 3600, 300, 0.14); },

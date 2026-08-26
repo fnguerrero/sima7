@@ -107,6 +107,25 @@ G.entidades = (function () {
     }
   }
 
+  function distAlJugador(e, mundo) {
+    return Math.abs((mundo.jugador.x + mundo.jugador.w / 2) - (e.x + e.w / 2));
+  }
+
+  /* Salto de esquive: lo usan los que están en el piso y ven venir un tiro. */
+  function esquivar(e, mundo, dt) {
+    if (e.enfriaEsquive > 0) { e.enfriaEsquive -= dt; return false; }
+    if (!mundo.balaEnCurso(e, 0.18)) return false;
+    e.enfriaEsquive = 1.4;
+    if (e.enSuelo !== false) {
+      e.vy = -430;
+      e.enSuelo = false;
+      mundo.efectos.polvo(e.x + e.w / 2, e.y + e.h, 4);
+    } else {
+      e.vy += 240;   // en el aire, se deja caer
+    }
+    return true;
+  }
+
   /* Dispara hacia el jugador con una desviación en radianes. */
   function tirarleAlJugador(e, mundo, opts) {
     opts = opts || {};
@@ -222,6 +241,7 @@ G.entidades = (function () {
 
     e.actualizar = function (dt, mundo) {
       if (veAlJugador(e, mundo, 230)) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
         e.alerta = 2.2;
         e.dir = haciaJugador(e, mundo);
       } else if (e.alerta > 0) e.alerta -= dt;
@@ -261,35 +281,91 @@ G.entidades = (function () {
     return e;
   }
 
-  /* Guardia: el enemigo estándar. Patrulla, te ve, se frena y dispara. */
+  /* Guardia: el enemigo estándar, y el que mejor muestra la IA nueva.
+     Si te ve, busca un parapeto del lado tuyo, se pega ahí y alterna entre
+     asomarse a disparar y volver a taparse. Si te le acercás demasiado retrocede
+     sin dejar de tirar, y si ve venir un balazo salta para esquivarlo. */
   function guardia(col, fila) {
     var e = baseEnemigo('guardia', col, fila, 18, 27, 2);
     e.recarga = 0.6 + (col % 5) * 0.18;
     e.retroceso = 0;
     e.puntos = 150;
+    e.enSuelo = false;
+    e.enfriaEsquive = 0;
+    e.cobertura = null;
+    e.asomado = 0;
+    e.buscaCobertura = 0;
+    e.DIST_IDEAL = 190;
 
     e.actualizar = function (dt, mundo) {
-      var ve = veAlJugador(e, mundo, 300);
-      if (ve) { e.alerta = 1.8; e.dir = haciaJugador(e, mundo); }
-      else if (e.alerta > 0) e.alerta -= dt;
-
-      e.vx = e.alerta > 0 ? G.aprox(e.vx, 0, 700 * dt) : 68 * e.dir;
-      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
-      empujar(e, dt);
-      var c = G.fisica.mover(e, mundo.mapa, dt);
-      if (c.pared && e.alerta <= 0) e.dir *= -1;
-      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
-      if (c.suelo && e.alerta <= 0 && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      var ve = veAlJugador(e, mundo, 320);
+      if (ve) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 220, e);
+        e.alerta = 2.2;
+        e.dir = haciaJugador(e, mundo);
+      } else if (e.alerta > 0) {
+        e.alerta -= dt;
+        if (e.avisado) e.dir = haciaJugador(e, mundo);
+      }
 
       if (e.alerta > 0) {
+        var dist = distAlJugador(e, mundo);
+        esquivar(e, mundo, dt);
+
+        // Buscar parapeto cada tanto
+        e.buscaCobertura -= dt;
+        if (e.buscaCobertura <= 0) {
+          e.buscaCobertura = 0.8;
+          e.cobertura = mundo.coberturaCerca(e, e.dir, 4);
+        }
+
+        if (e.cobertura && dist > 90) {
+          // Pegarse al parapeto y asomarse por turnos
+          var haciaCob = e.cobertura.x - e.x;
+          if (Math.abs(haciaCob) > 4) {
+            e.vx = G.aprox(e.vx, Math.sign(haciaCob) * 95, 700 * dt);
+          } else {
+            e.vx = G.aprox(e.vx, 0, 900 * dt);
+            e.asomado -= dt;
+            if (e.asomado < -0.55) e.asomado = 0.6;
+          }
+        } else if (dist < 110) {
+          e.vx = G.aprox(e.vx, -e.dir * 110, 700 * dt);   // demasiado cerca: retroceder
+          e.asomado = 1;
+        } else if (dist > e.DIST_IDEAL + 90) {
+          e.vx = G.aprox(e.vx, e.dir * 70, 600 * dt);
+          e.asomado = 1;
+        } else {
+          e.vx = G.aprox(e.vx, 0, 700 * dt);
+          e.asomado = 1;
+        }
+
+        // Solo dispara cuando está asomado
         e.recarga -= dt;
-        if (e.recarga <= 0) {
-          e.recarga = 0.9;
+        if (e.recarga <= 0 && e.asomado > 0 && ve) {
+          e.recarga = 0.85;
           e.retroceso = 0.12;
           tirarleAlJugador(e, mundo, { despX: 12, vel: 340, desvio: (Math.random() - 0.5) * 0.1 });
           G.audio.disparoEnemigo();
         }
+      } else {
+        e.vx = 68 * e.dir;
+        e.cobertura = null;
       }
+
+      e.vy = Math.min(e.vy + G.GRAVEDAD * dt, G.VEL_MAX_CAIDA);
+      empujar(e, dt);
+      var c = G.fisica.mover(e, mundo.mapa, dt);
+      e.enSuelo = c.suelo;
+      if (c.pared && e.alerta <= 0) e.dir *= -1;
+      var punta = e.dir > 0 ? e.x + e.w + 2 : e.x - 2;
+      if (c.suelo && e.alerta <= 0 && !G.fisica.haySueloEn(mundo.mapa, punta, e.y + e.h + 3)) e.dir *= -1;
+      // Aun en combate, no se tira solo al vacío
+      if (c.suelo && e.alerta > 0 && e.vx !== 0) {
+        var p2 = e.vx > 0 ? e.x + e.w + 3 : e.x - 3;
+        if (!G.fisica.haySueloEn(mundo.mapa, p2, e.y + e.h + 3)) e.vx = 0;
+      }
+
       if (e.retroceso > 0) e.retroceso -= dt;
       if (G.fisica.tocaPeligro(e, mundo.mapa, 4)) mundo.danarEnemigo(e, 99, 0, 0);
       if (e.y > mundo.alto + 90) e.quitar = true;
@@ -301,7 +377,7 @@ G.entidades = (function () {
           ropa: ROPA.guardia.ropa, ropaClara: ROPA.guardia.ropaClara,
           pantalon: ROPA.guardia.pantalon, chaleco: '#22303d',
           casco: ROPA.guardia.casco, cascoClaro: '#5b7186', visera: '#1b2530',
-          ojo: '#ff8a3a',
+          ojo: e.alerta > 0 ? '#ff5a3c' : '#ff8a3a',
           arma: function (ctx, d, W) {
             var bx = d > 0 ? W - 3 : -11;
             ctx.fillStyle = '#1f262e';
@@ -318,6 +394,12 @@ G.entidades = (function () {
           ctx.fillRect(fx, Math.round(e.y) + 12, 6, 4);
         }
       });
+      // Signo de alerta al detectarte
+      if (e.alerta > 1.9) {
+        ctx.fillStyle = '#ff5a3c';
+        ctx.fillRect(Math.round(e.x) + e.w / 2 - 1, Math.round(e.y) - 12, 3, 6);
+        ctx.fillRect(Math.round(e.x) + e.w / 2 - 1, Math.round(e.y) - 5, 3, 2);
+      }
       barraVida(ctx, e);
     };
     return e;
@@ -331,6 +413,7 @@ G.entidades = (function () {
     e.rango = 90;
     e.recarga = 1.0 + (col % 4) * 0.25;
     e.puntos = 200;
+    e.enfriaEsquive = 0;
 
     e.actualizar = function (dt, mundo) {
       e.x += e.dir * 52 * dt;
@@ -339,7 +422,17 @@ G.entidades = (function () {
       e.y = e.baseY + Math.sin(e.t * 1.9) * 16;
       empujar(e, dt);
 
+      // Ve venir el tiro y sube o baja de golpe
+      if (e.enfriaEsquive > 0) e.enfriaEsquive -= dt;
+      else if (mundo.balaEnCurso(e, 0.2)) {
+        e.enfriaEsquive = 1.2;
+        e.baseY += (mundo.jugador.y < e.y ? 34 : -34);
+        e.baseY = G.clamp(e.baseY, 30, mundo.alto - 90);
+        mundo.efectos.chispas(e.x + e.w / 2, e.y + e.h, 5, '#ffb45c');
+      }
+
       if (veAlJugador(e, mundo, 320)) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 220, e);
         e.alerta = 1.5;
         e.recarga -= dt;
         if (e.recarga <= 0) {
@@ -396,7 +489,11 @@ G.entidades = (function () {
 
     e.actualizar = function (dt, mundo) {
       var cerca = veAlJugador(e, mundo, 190);
-      if (cerca) { e.alerta = 1.6; e.dir = haciaJugador(e, mundo); }
+      if (cerca) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 200, e);
+        e.alerta = 1.6;
+        e.dir = haciaJugador(e, mundo);
+      }
       else if (e.alerta > 0) e.alerta -= dt;
 
       if (e.apuntando > 0) {
@@ -470,8 +567,21 @@ G.entidades = (function () {
       G.fisica.mover(e, mundo.mapa, dt);
 
       var ve = veAlJugador(e, mundo, 460);
-      if (ve) { e.alerta = 1.4; e.dir = haciaJugador(e, mundo); }
-      else if (e.alerta > 0) e.alerta -= dt;
+      if (ve) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 300, e);
+        e.alerta = 1.4;
+        e.dir = haciaJugador(e, mundo);
+      } else if (e.alerta > 0) e.alerta -= dt;
+
+      // No sirve de nada a quemarropa: si lo apurás, retrocede y pierde la mira
+      var dist = distAlJugador(e, mundo);
+      if (ve && dist < 130) {
+        e.vx = G.aprox(e.vx, -e.dir * 120, 800 * dt);
+        e.cargando = 0;
+        e.recarga = Math.max(e.recarga, 0.5);
+      } else {
+        e.vx = G.aprox(e.vx, 0, 900 * dt);
+      }
 
       if (e.cargando > 0) {
         e.cargando -= dt;
@@ -540,8 +650,11 @@ G.entidades = (function () {
 
     e.actualizar = function (dt, mundo) {
       var ve = veAlJugador(e, mundo, 340);
-      if (ve) { e.alerta = 2; e.dir = haciaJugador(e, mundo); }
-      else if (e.alerta > 0) e.alerta -= dt;
+      if (ve) {
+        if (!e.alerta) mundo.alertarZona(e.x + e.w / 2, e.y + e.h / 2, 300, e);
+        e.alerta = 2;
+        e.dir = haciaJugador(e, mundo);
+      } else if (e.alerta > 0) e.alerta -= dt;
 
       if (e.rafaga > 0) {
         e.vx = G.aprox(e.vx, 0, 900 * dt);

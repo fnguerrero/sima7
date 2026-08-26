@@ -20,6 +20,7 @@ G.motor = (function () {
   var mundo = null;
   var fallosNiveles = null;
   var avanceTexto = 0;      // efecto de tipeo de las pantallas con texto
+  var resultado = null;     // calificación del último nivel terminado
 
   var partida = nuevaFicha(1);
 
@@ -32,7 +33,10 @@ G.motor = (function () {
   };
 
   function nuevaFicha(nivel) {
-    return { vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: nivel, control: null };
+    return {
+      vidas: 3, esquirlas: 0, puntaje: 0, bajas: 0, nivel: nivel, control: null,
+      combo: 0, comboT: 0, mejorCombo: 0, horda: nivel === 0
+    };
   }
 
   /* ---- Partida ---- */
@@ -48,6 +52,7 @@ G.motor = (function () {
     mundo = G.crearMundo(n, partida);
     estado = G.JUGANDO;
     G.audio.ambiente(FRECUENCIA_AMBIENTE[mundo.capa] || 50);
+    G.musica.tocar(mundo.capa, !!mundo.jefe || mundo.horda);
   }
 
   function reiniciarNivel() {
@@ -72,6 +77,8 @@ G.motor = (function () {
         accion: function () { empezarDesde(p.desbloqueado); } },
       { txt: 'Elegir profundidad',
         accion: function () { selNivel = p.desbloqueado - 1; estado = G.SELECCION; } },
+      { txt: 'Modo horda' + (p.mejorOleada ? ' (mejor: oleada ' + p.mejorOleada + ')' : ''),
+        accion: function () { partida = nuevaFicha(0); cargarNivel(0); } },
       { txt: 'Empezar de cero',
         accion: function () { avanceTexto = 0; partida = nuevaFicha(1); estado = G.HISTORIA; } },
       { txt: 'Controles: ' + (G.input.esquema() === 'alternativo' ? 'WASD + Enter' : 'flechas + Z'),
@@ -154,7 +161,12 @@ G.motor = (function () {
     if (G.input.apretado('reiniciar')) { reiniciarNivel(); G.input.consumir('reiniciar'); }
     if (G.input.apretado('gore')) { G.save.cambiarGore(); G.input.consumir('gore'); }
     if (G.input.apretado('ayuda')) { estadoPrevio = G.PAUSA; estado = G.AYUDA; G.input.consumir('ayuda'); }
-    if (G.input.apretado('salir')) { estado = G.MENU; armarMenu(); G.input.consumir('salir'); }
+    if (G.input.apretado('salir')) {
+      G.musica.parar();
+      estado = G.MENU;
+      armarMenu();
+      G.input.consumir('salir');
+    }
   }
 
   /* ---- Transiciones del juego ---- */
@@ -166,7 +178,9 @@ G.motor = (function () {
       partida.vidas--;
       if (partida.vidas <= 0) {
         G.save.registrarPuntaje(partida.puntaje);
+        if (mundo.horda) G.save.registrarOleada(mundo.oleada);
         G.audio.callarAmbiente();
+        G.musica.parar();
         estado = G.GAME_OVER;
       } else {
         reiniciarNivel();
@@ -178,11 +192,15 @@ G.motor = (function () {
       G.save.desbloquear(mundo.numero + 1);
       G.save.registrarPuntaje(partida.puntaje);
       G.save.registrarTiempo(mundo.numero, mundo.tiempoJugado);
+      resultado = G.ranking.evaluar(mundo, partida);
+      resultado.record = G.save.registrarRango(mundo.numero, resultado.rango.letra);
       partida.control = null;
+      partida.mejorCombo = 0;
       avanceTexto = 0;
       if (mundo.numero >= G.niveles.total) {
         G.save.marcarCompletado();
         G.audio.callarAmbiente();
+        G.musica.parar();
         G.audio.final();
         estado = G.FINAL;
       } else {
@@ -214,7 +232,14 @@ G.motor = (function () {
         break;
       case G.JUGANDO:
         inputJugando();
-        if (estado === G.JUGANDO) avanzarJuego(dt);
+        if (estado === G.JUGANDO) {
+          avanzarJuego(dt);
+          if (mundo) {
+            var j = mundo.jugador;
+            G.musica.estado(j.lentoActivo, j.turboActivo,
+                            1 - (j.vida / j.vidaMax));
+          }
+        }
         break;
       case G.PAUSA:
         inputPausa();
@@ -281,11 +306,11 @@ G.motor = (function () {
         break;
       case G.NIVEL_OK:
         mundo.dibujar(ctx);
-        G.pantallas.nivelOk(ctx, t, mundo, partida, avanceTexto);
+        G.pantallas.nivelOk(ctx, t, mundo, partida, avanceTexto, resultado);
         break;
       case G.GAME_OVER:
         if (mundo) { mundo.dibujar(ctx); G.hud.dibujar(ctx, mundo, partida); }
-        G.pantallas.gameOver(ctx, t, partida);
+        G.pantallas.gameOver(ctx, t, partida, mundo);
         break;
       case G.FINAL:
         G.pantallas.final(ctx, t, partida, avanceTexto);
