@@ -96,6 +96,7 @@ G.pantallas = (function () {
   }
 
   var NOMBRES_GORE = ['sin sangre', 'sangre moderada', 'sangre completa'];
+  var NOMBRES_EFECTOS = ['apagados', 'suaves', 'completos'];
 
   /* Recuadro de terminal: lo usan la intro y los registros encontrados. */
   function terminal(ctx, x, y, w, h, titulo) {
@@ -267,7 +268,8 @@ G.pantallas = (function () {
         ['P / Esc', 'pausa'],
         ['R', 'reiniciar el nivel'],
         ['Q', 'desde la pausa, volver al menú'],
-        ['M · G', 'silenciar · cambiar el nivel de sangre']
+        ['M · G', 'silenciar · cambiar el nivel de sangre'],
+        ['T', 'efectos de cámara: sacudón, freeze y cámara lenta']
       ]);
 
       filas.forEach(function (f, i) {
@@ -289,10 +291,14 @@ G.pantallas = (function () {
               { size: 11, align: 'center', color: mundo.paleta.acento });
       G.texto(ctx, 'P / Esc  seguir', W / 2, 150, { size: 11, align: 'center' });
       G.texto(ctx, 'R  reiniciar el nivel', W / 2, 170, { size: 11, align: 'center' });
-      G.texto(ctx, 'G  sangre: ' + NOMBRES_GORE[G.save.nivelGore()], W / 2, 190,
+      G.texto(ctx, 'G  sangre: ' + NOMBRES_GORE[G.save.nivelGore()], W / 2, 188,
               { size: 11, align: 'center', color: '#c3ced8' });
-      G.texto(ctx, 'Q  volver al menú', W / 2, 210, { size: 11, align: 'center' });
-      G.texto(ctx, 'el cambio de sangre se aplica al reiniciar el nivel', W / 2, 240,
+      G.texto(ctx, 'T  efectos de cámara: ' + NOMBRES_EFECTOS[G.save.nivelEfectos()], W / 2, 206,
+              { size: 11, align: 'center', color: '#c3ced8' });
+      G.texto(ctx, 'Q  volver al menú', W / 2, 224, { size: 11, align: 'center' });
+      G.texto(ctx, 'los efectos de cámara son el sacudón, el freeze al matar y la cámara lenta',
+              W / 2, 250, { size: 8, align: 'center', color: '#66727d' });
+      G.texto(ctx, 'el cambio de sangre se aplica al reiniciar el nivel', W / 2, 264,
               { size: 8, align: 'center', color: '#66727d' });
     },
 

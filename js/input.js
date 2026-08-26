@@ -18,6 +18,7 @@ G.input = (function () {
     KeyQ: 'salir',
     KeyM: 'mute',
     KeyG: 'gore',
+    KeyT: 'efectos',
     F1: 'ayuda'
   };
 

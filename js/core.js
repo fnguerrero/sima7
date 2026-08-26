@@ -85,7 +85,13 @@ G.CONGELAR_EXPLOSION = 0.17;
 G.VEL_APLASTE = 150;      // caer más rápido que esto, encima de alguien, lo revienta
 G.REBOTE_APLASTE = 0.78;  // del impulso de salto
 G.CONGELAR_REVENTAR = 0.09;
-G.LENTA_ULTIMA_BAJA = 0.9;   // seg de cámara lenta al limpiar una zona
+/* Cámara lenta al limpiar una zona. Es un premio, y un premio que llega cada
+   diez segundos deja de sentirse como premio y empieza a sentirse como que el
+   juego se traba: por eso pide una racha de verdad y tiene enfriamiento. */
+G.LENTA_ULTIMA_BAJA = 0.62;  // seg de cámara lenta
+G.LENTA_FACTOR = 0.5;        // qué tan lento va durante esos segundos
+G.LENTA_MIN_BAJAS = 3;       // bajas encadenadas que hacen falta para ganársela
+G.LENTA_ENFRIAMIENTO = 12;   // seg mínimos entre una y la siguiente
 G.MAX_CADAVERES = 22;
 
 /* ---------------- Estados de la máquina principal ---------------- */

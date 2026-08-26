@@ -90,6 +90,8 @@ G.motor = (function () {
         accion: function () { estadoPrevio = G.MENU; estado = G.AYUDA; } },
       { txt: 'Sangre: ' + ['apagada', 'moderada', 'completa'][p.gore],
         accion: function () { G.save.cambiarGore(); armarMenu(); } },
+      { txt: 'Efectos de cámara: ' + ['apagados', 'suaves', 'completos'][p.efectos],
+        accion: function () { G.save.cambiarEfectos(); armarMenu(); } },
       { txt: 'Borrar progreso',
         accion: function () { G.save.borrar(); G.input.usarEsquema(G.save.esquema()); armarMenu(); } }
     ];
@@ -176,6 +178,7 @@ G.motor = (function () {
     }
     if (G.input.apretado('reiniciar')) { reiniciarNivel(); G.input.consumir('reiniciar'); }
     if (G.input.apretado('gore')) { G.save.cambiarGore(); G.input.consumir('gore'); }
+    if (G.input.apretado('efectos')) { G.save.cambiarEfectos(); G.input.consumir('efectos'); }
     if (G.input.apretado('ayuda')) { estadoPrevio = G.PAUSA; estado = G.AYUDA; G.input.consumir('ayuda'); }
     if (G.input.apretado('salir')) {
       volverAlMenu();

@@ -38,6 +38,7 @@ G.crearMundo = function (numeroNivel, partida) {
     jefe: null,
     congelado: 0,        // hit stop: el mundo se detiene, la pantalla no
     lenta: 0,            // cámara lenta breve al limpiar una zona
+    tUltimaLenta: -99,   // para no encadenar cámaras lentas
     cadaveres: [],
     control: null,       // baliza activada en este nivel
     enemigosNivel: 0,
@@ -193,7 +194,9 @@ G.crearMundo = function (numeroNivel, partida) {
   /* Hit stop: unos milisegundos sin simular. Es lo que hace que un disparo se
      sienta como un impacto y no como restar un número. */
   mundo.congelar = function (seg) {
-    mundo.congelado = Math.max(mundo.congelado, seg);
+    var nivel = G.save.nivelEfectos();
+    if (nivel === 0) return;
+    mundo.congelado = Math.max(mundo.congelado, nivel === 1 ? seg * 0.5 : seg);
   };
 
   /* Un disparo o un grito pone en alerta a todos los que están cerca: el equipo
@@ -330,9 +333,15 @@ G.crearMundo = function (numeroNivel, partida) {
         G.audio.carne();
         if (Math.random() < 0.75) G.audio.grito();
       }
-      // Si era el último de la zona, un respiro en cámara lenta
+      // Si era el último de la zona, un respiro. Pero solo si fue una racha de
+      // verdad y hace rato que no pasa: si no, el juego parece que se traba
       if (!quedanEnemigosCerca()) {
-        mundo.lenta = Math.max(mundo.lenta, G.LENTA_ULTIMA_BAJA);
+        var racha = partida.combo >= G.LENTA_MIN_BAJAS;
+        var listo = mundo.t - mundo.tUltimaLenta > G.LENTA_ENFRIAMIENTO;
+        if (racha && listo && G.save.nivelEfectos() === 2) {
+          mundo.lenta = Math.max(mundo.lenta, G.LENTA_ULTIMA_BAJA);
+          mundo.tUltimaLenta = mundo.t;
+        }
         G.audio.zonaLimpia();
         mundo.jugador.decir('sector');
       }
@@ -1020,7 +1029,7 @@ G.crearMundo = function (numeroNivel, partida) {
   /* Factor global de velocidad: 1 normal, menos durante la cámara lenta del
      último enemigo. El motor lo usa para escalar el dt de todo el juego. */
   mundo.factorTiempo = function () {
-    return mundo.lenta > 0 ? 0.45 : 1;
+    return mundo.lenta > 0 ? G.LENTA_FACTOR : 1;
   };
 
   /* Expuesto para los tests. */

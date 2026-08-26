@@ -31,8 +31,8 @@ Hay dos esquemas de teclas y se cambian desde el menú:
 | Ultra velocidad (barra VEL) | `C` | `L` |
 
 Iguales en los dos: `P`/`Esc` pausa · `R` reiniciar el nivel · `Q` volver al menú
-desde la pausa · `M` silenciar · `G` cambiar el nivel de sangre · `F1` ver los
-controles.
+desde la pausa · `M` silenciar · `G` cambiar el nivel de sangre · `T` efectos de
+cámara · `F1` ver los controles.
 
 El progreso se guarda solo: las profundidades quedan desbloqueadas entre
 sesiones, junto con el mejor puntaje y el mejor tiempo de cada nivel.
@@ -130,6 +130,13 @@ guardada y se ve en la pantalla de selección.
 **Modo horda**: una arena cerrada, sin salida y sin oxígeno contado. Oleadas que
 crecen en cantidad y en calaña; cada tres cae un arma o un botiquín. Guarda la
 mejor oleada alcanzada.
+
+**Los efectos de cámara se pueden bajar o apagar** (`T`, o desde el menú). Son
+tres cosas que le dan peso a los impactos pero que en exceso se sienten como que
+el juego se traba: el sacudón, el freeze de unos milisegundos al matar, y la
+cámara lenta al limpiar una zona. Esa última se ganó con una racha de tres o más
+y no vuelve a aparecer hasta doce segundos después, justamente para que siga
+sintiéndose como un premio.
 
 ## Las cuatro capas
 

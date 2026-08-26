@@ -31,8 +31,11 @@ G.crearCamara = function (anchoMundo, altoMundo) {
   };
 
   cam.sacudir = function (seg, fuerza) {
-    cam.sacudida = Math.max(cam.sacudida, seg);
-    cam.fuerza = Math.max(cam.fuerza, fuerza == null ? 3 : fuerza);
+    var nivel = G.save.nivelEfectos();
+    if (nivel === 0) return;
+    var k = nivel === 1 ? 0.45 : 1;
+    cam.sacudida = Math.max(cam.sacudida, seg * k);
+    cam.fuerza = Math.max(cam.fuerza, (fuerza == null ? 3 : fuerza) * k);
   };
 
   cam.offset = function () {

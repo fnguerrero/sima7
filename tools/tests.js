@@ -1134,6 +1134,38 @@
   // =====================================================================
   grupo('Progreso');
 
+  test('la cámara lenta pide una racha y tiene enfriamiento', function () {
+    var m = mundoDePrueba(9);
+    m.jugador.inmune = 1e9;
+    var es = m.entidades.filter(function (e) { return e.enemigo; });
+    afirmar(es.length >= 4, 'el nivel 9 no tiene enemigos suficientes');
+
+    // Una sola baja aislada no debería frenar el juego
+    es[0].activa = true;
+    es[0].x = m.jugador.x + 40;
+    m.danarEnemigo(es[0], 99, 100, 0);
+    igual(m.lenta, 0, 'se activó la cámara lenta por una sola baja');
+  });
+
+  test('los efectos de cámara se pueden bajar y apagar', function () {
+    var original = G.save.nivelEfectos();
+
+    while (G.save.nivelEfectos() !== 0) G.save.cambiarEfectos();
+    var m = mundoDePrueba(1);
+    m.congelar(0.2);
+    igual(m.congelado, 0, 'congeló con los efectos apagados');
+    m.camara.sacudir(0.4, 8);
+    igual(m.camara.sacudida, 0, 'sacudió con los efectos apagados');
+
+    G.save.cambiarEfectos();   // suaves
+    var m2 = mundoDePrueba(1);
+    m2.congelar(0.2);
+    afirmar(m2.congelado > 0 && m2.congelado < 0.2, 'en suave debería congelar la mitad');
+
+    while (G.save.nivelEfectos() !== original) G.save.cambiarEfectos();
+    igual(G.save.nivelEfectos(), original, 'no volvió a la preferencia original');
+  });
+
   test('el nivel de sangre cicla entre los tres modos', function () {
     var inicial = G.save.nivelGore();
     var a = G.save.cambiarGore();
