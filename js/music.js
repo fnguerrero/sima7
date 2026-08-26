@@ -65,7 +65,13 @@ G.musica = (function () {
   }
 
   function armar() {
-    if (salida) return true;
+    // Si el contexto se cerró (pestaña que se fue y volvió), hay que rearmar
+    // todo: los nodos viejos quedaron colgando de un contexto muerto.
+    if (salida && ctx && ctx.state !== 'closed') return true;
+    salida = null;
+    filtro = null;
+    corriendo = false;
+    if (timer) { clearTimeout(timer); timer = null; }
     ctx = G.audio.contexto();
     if (!ctx) return false;
     var master = G.audio.salida();
@@ -162,7 +168,12 @@ G.musica = (function () {
 
   function reloj() {
     if (!corriendo || !ctx) return;
-    while (proximaNota < ctx.currentTime + LOOKAHEAD) programar();
+    // Si la pestaña estuvo dormida, el reloj de audio siguió corriendo y el
+    // secuenciador quedó atrás. Sin este tope, al volver programaría cientos de
+    // notas de golpe y sonaría como una avalancha.
+    if (proximaNota < ctx.currentTime - 0.5) proximaNota = ctx.currentTime + 0.05;
+    var guarda = 0;
+    while (proximaNota < ctx.currentTime + LOOKAHEAD && guarda++ < 32) programar();
     timer = setTimeout(reloj, INTERVALO);
   }
 
@@ -191,7 +202,9 @@ G.musica = (function () {
     parar: function () {
       corriendo = false;
       if (timer) { clearTimeout(timer); timer = null; }
-      if (salida && ctx) salida.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25);
+      if (salida && ctx && ctx.state !== 'closed') {
+        try { salida.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.25); } catch (e) { /* nada */ }
+      }
     },
 
     /* Lo llama el motor cada frame con lo que está pasando. */

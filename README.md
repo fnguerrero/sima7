@@ -257,6 +257,12 @@ oscurecer cada tile a mano.
 **El paso de física es fijo** (1/120 s con acumulador): un tirón del navegador no
 hace que el jugador atraviese una pared.
 
+**El juego se calla solo cuando no lo estás mirando.** Si la pestaña se oculta o
+la ventana pierde el foco, el juego se pone en pausa y el AudioContext se
+suspende; al cerrarla, el contexto se cierra y los osciladores se detienen. Una
+pestaña olvidada en segundo plano seguía con la música y el zumbido de la mina
+puestos, y no había forma de darse cuenta de dónde salía el ruido.
+
 **El tiempo lento escala el dt del mundo, no el del jugador.** Por eso el update
 del mundo maneja dos dt distintos. El hit stop y la cámara lenta, en cambio, son
 del mundo entero y escalan todo por igual.

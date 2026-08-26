@@ -139,7 +139,7 @@ G.motor = (function () {
       G.input.consumir('confirmar');
       G.input.consumir('disparar');
     }
-    if (G.input.apretado('pausa')) { estado = G.MENU; armarMenu(); G.input.consumir('pausa'); }
+    if (G.input.apretado('pausa')) { volverAlMenu(); G.input.consumir('pausa'); }
   }
 
   function inputAyuda() {
@@ -159,15 +159,26 @@ G.motor = (function () {
     if (G.input.apretado('ayuda')) { estadoPrevio = G.PAUSA; estado = G.AYUDA; G.input.consumir('ayuda'); }
   }
 
+  /* Un solo lugar para volver al menú: así no se olvida de apagar nada. */
+  function volverAlMenu() {
+    G.musica.parar();
+    G.audio.apagarAmbiente();
+    estado = G.MENU;
+    armarMenu();
+  }
+
   function inputPausa() {
-    if (G.input.apretado('pausa')) { estado = G.JUGANDO; G.input.consumir('pausa'); }
+    if (G.input.apretado('pausa')) {
+      estado = G.JUGANDO;
+      // La música se corta al pausar; al volver, arranca de nuevo
+      if (mundo) G.musica.tocar(mundo.capa, !!mundo.jefe || mundo.horda);
+      G.input.consumir('pausa');
+    }
     if (G.input.apretado('reiniciar')) { reiniciarNivel(); G.input.consumir('reiniciar'); }
     if (G.input.apretado('gore')) { G.save.cambiarGore(); G.input.consumir('gore'); }
     if (G.input.apretado('ayuda')) { estadoPrevio = G.PAUSA; estado = G.AYUDA; G.input.consumir('ayuda'); }
     if (G.input.apretado('salir')) {
-      G.musica.parar();
-      estado = G.MENU;
-      armarMenu();
+      volverAlMenu();
       G.input.consumir('salir');
     }
   }
@@ -182,7 +193,7 @@ G.motor = (function () {
       if (partida.vidas <= 0) {
         G.save.registrarPuntaje(partida.puntaje);
         if (mundo.horda) G.save.registrarOleada(mundo.oleada);
-        G.audio.callarAmbiente();
+        G.audio.apagarAmbiente();
         G.musica.parar();
         estado = G.GAME_OVER;
       } else {
@@ -202,7 +213,7 @@ G.motor = (function () {
       avanceTexto = 0;
       if (mundo.numero >= G.niveles.total) {
         G.save.marcarCompletado();
-        G.audio.callarAmbiente();
+        G.audio.apagarAmbiente();
         G.musica.parar();
         G.audio.final();
         estado = G.FINAL;
@@ -262,15 +273,14 @@ G.motor = (function () {
           G.input.consumir('confirmar');
           G.input.consumir('disparar');
           if (avanceTexto < 1) avanceTexto = 1;
-          else { estado = G.MENU; armarMenu(); }
+          else volverAlMenu();
         }
         break;
       case G.GAME_OVER:
         if (G.input.apretado('confirmar')) {
           G.input.consumir('confirmar');
           G.input.consumir('disparar');
-          estado = G.MENU;
-          armarMenu();
+          volverAlMenu();
         }
         break;
     }
@@ -363,8 +373,18 @@ G.motor = (function () {
     requestAnimationFrame(frame);
   }
 
+  /* La llama main.js cuando la pestaña deja de estar a la vista. */
+  function pausarPorInactividad() {
+    if (estado === G.JUGANDO) {
+      estado = G.PAUSA;
+      G.input.reset();
+      G.musica.parar();
+    }
+  }
+
   return {
     iniciar: iniciar,
+    pausarPorInactividad: pausarPorInactividad,
     /* Ganchos para verificar el juego sin jugarlo a mano. */
     debug: {
       estado: function () { return estado; },

@@ -104,6 +104,33 @@ G.audio = (function () {
       var c = asegurarCtx();
       if (c && c.state === 'suspended') c.resume();
     },
+    /* Silencio total mientras la pestaña no está a la vista. Un juego que sigue
+       sonando en segundo plano es un juego que se olvidaron de apagar: se
+       suspende el contexto entero y se reanuda al volver. */
+    suspender: function () {
+      if (ctx && ctx.state === 'running') {
+        try { ctx.suspend(); } catch (e) { /* nada */ }
+      }
+    },
+    reanudar: function () {
+      if (ctx && ctx.state === 'suspended') {
+        try { ctx.resume(); } catch (e) { /* nada */ }
+      }
+    },
+    /* Al cerrar la pestaña: cortar de raíz, sin dejar osciladores vivos. */
+    cerrar: function () {
+      if (zumbido) {
+        try { zumbido.osc.stop(); } catch (e) { /* nada */ }
+        zumbido = null;
+      }
+      if (ctx) {
+        try { ctx.close(); } catch (e) { /* nada */ }
+        ctx = null;
+        master = null;
+        bufferRuido = null;
+      }
+    },
+
     /* La música vive en su propio módulo pero comparte contexto y salida:
        así el mute y el volumen general valen para todo. */
     contexto: function () { return asegurarCtx(); },
@@ -140,6 +167,15 @@ G.audio = (function () {
       if (zumbido && ctx) {
         try { zumbido.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.2); } catch (e) { }
       }
+    },
+    /* Apagar el zumbido para siempre: al volver al menú no tiene por qué seguir. */
+    apagarAmbiente: function () {
+      if (!zumbido) return;
+      try {
+        if (ctx) zumbido.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.15);
+        zumbido.osc.stop(ctx ? ctx.currentTime + 0.4 : 0);
+      } catch (e) { /* nada */ }
+      zumbido = null;
     },
     volverAmbiente: function () {
       if (zumbido && ctx) {
