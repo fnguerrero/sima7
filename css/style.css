@@ -1,0 +1,59 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #05070a;
+  color: #9fb0be;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  overflow: hidden;
+}
+
+/* Halo frío detrás del marco: da la sensación de estar mirando por un visor */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(40, 90, 110, 0.16), transparent 62%);
+  pointer-events: none;
+}
+
+#marco {
+  position: relative;
+  border: 2px solid #1e2c36;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #0a1016, 0 0 60px rgba(30, 120, 140, 0.22);
+  line-height: 0;
+  background: #000;
+}
+
+#pantalla {
+  display: block;
+  /* Escala el canvas manteniendo la resolución interna de 640x352 */
+  width: min(96vw, calc(90vh * 640 / 352));
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+#ayuda {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  opacity: 0.7;
+  text-align: center;
+  padding: 0 12px;
+  max-width: 900px;
+  line-height: 1.7;
+}
+
+#ayuda b {
+  color: #ffcf5a;
+  font-weight: 600;
+}

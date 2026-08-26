@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SIMA-7 — tests</title>
+<style>
+  body { background:#05080c; color:#c3ced8; font-family:"Consolas","Courier New",monospace; padding:20px 24px; }
+  h1 { font-size:18px; margin:0 0 4px; color:#ffcf5a; }
+  p.sub { margin:0 0 18px; font-size:12px; color:#66727d; }
+  #resumen { font-size:15px; padding:10px 14px; border-radius:3px; margin-bottom:16px; display:inline-block; }
+  .verde { background:#0e2a1a; color:#6ee79a; border:1px solid #2a6b40; }
+  .rojo  { background:#2e1010; color:#ff8f8f; border:1px solid #7a2a2a; }
+  ul { list-style:none; padding:0; margin:0; font-size:13px; line-height:1.75; }
+  li.pasa::before  { content:"PASA "; color:#6ee79a; }
+  li.falla::before { content:"FALLA "; color:#ff6b6b; font-weight:bold; }
+  li.falla { color:#ffb3b3; }
+  .grupo { margin:16px 0 4px; color:#ffcf5a; font-size:13px; border-bottom:1px solid #1e2c36; padding-bottom:3px; }
+  canvas { display:none; }
+</style>
+</head>
+<body>
+  <h1>SIMA-7 — batería de tests</h1>
+  <p class="sub">Corre sola al abrir la página. Verifica el motor, el jugador, los poderes, las balas, las entidades y los 10 niveles.</p>
+  <div id="resumen">corriendo…</div>
+  <ul id="salida"></ul>
+
+  <canvas id="pantalla" width="640" height="352"></canvas>
+
+  <script src="js/core.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/tiles.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/validator.js"></script>
+  <script src="js/gore.js"></script>
+  <script src="js/bullets.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/screens.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="tools/tests.js"></script>
+</body>
+</html>
