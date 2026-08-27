@@ -9,8 +9,8 @@ minutos. Bajás a confirmar la versión oficial con una cámara en el casco.
 HTML + JavaScript puro: sin dependencias, sin build, sin assets externos. Los
 gráficos están dibujados por código y el sonido es sintetizado con WebAudio.
 
-Nació como una reescritura de [Plataformero](../Plataformero), pero de ese quedó
-solo el motor: física, ciclo de juego, validador de niveles y guardado.
+Nació como una reescritura de [NIMBO](../Nimbo), pero de ese quedó solo el motor:
+física, ciclo de juego, validador de niveles y guardado.
 
 ## Cómo jugar
 
