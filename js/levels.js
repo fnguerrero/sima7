@@ -12,7 +12,8 @@
    validator.js verifica después que se pueda llegar del spawn a la salida.
 
    Tiles:  # roca · S metal · B panel rompible · C barril explosivo · X escombro
-           V veta luminosa · = rejilla atravesable · ^ sierra · L líquido · W charco
+           V veta luminosa · = rejilla atravesable · ^ sierra · L líquido
+           (W, el charco tóxico, quedó sin uso: las sierras se leen mejor)
    Marcas: P spawn · F salida · K baliza (punto de control)
    Gente:  1 saqueador · 2 guardia · 3 jetpack · 4 escopetero · 5 francotirador
            6 pesado · 9 lo del fondo
@@ -183,7 +184,7 @@ G.niveles = (function () {
         [21, 10, '4'],
         [25, 7, '===='],
         [26, 6, 'ooo'],
-        [30, 10, 'WWW'],
+        [30, 10, '^^^'],
         [42, 10, '2'],
         [46, 9, 'ooo'],
         [50, 10, '4'],
@@ -191,17 +192,17 @@ G.niveles = (function () {
         [55, 7, 'h'],
         [57, 10, 'n'],
         [60, 10, 'K'],
-        [64, 10, 'WWWW'],
+        [64, 10, '^^^^'],
         [69, 7, '====='],
         [70, 6, 'oo'],
         [80, 10, '5'],
         [84, 9, 'SSS'],
         [85, 8, 'ooo'],
-        [90, 10, 'WWW'],
+        [90, 10, '^^^'],
         [95, 7, '====='],
         [96, 6, 'oo'],
         [100, 10, '1'], [104, 10, '2'],
-        [116, 10, 'WWW'],
+        [116, 10, '^^^'],
         [121, 9, 'ooo'],
         [125, 10, '4'],
         [130, 7, '====='],
@@ -228,7 +229,7 @@ G.niveles = (function () {
         [38, 10, '2'],
         [42, 7, '===='],
         [43, 6, 'ooo'],
-        [47, 10, 'WW'],
+        [47, 10, '^^'],
         [50, 10, 'K'],
         [46, 10, 'n'],
         [54, 8, '~'],
@@ -245,7 +246,7 @@ G.niveles = (function () {
         [91, 8, 'ooo'],
         [97, 7, '====='],
         [98, 6, 'a'],
-        [102, 10, 'WW'],
+        [102, 10, '^^'],
         [108, 8, '~'],
         [110, 7, '~'],
         [114, 10, '2'],
@@ -256,7 +257,7 @@ G.niveles = (function () {
         [136, 10, '4'],
         [140, 9, 'SSS'],
         [141, 8, 'h'],
-        [147, 10, 'WWW'],
+        [147, 10, '^^^'],
         [155, 10, 'F']
       ]
     },

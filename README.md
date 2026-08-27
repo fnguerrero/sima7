@@ -142,7 +142,7 @@ pero en exceso se sienten como que el juego se traba, así que van con perilla.
 | 1 | Boca del pozo | Colonia | Correr, saltar, disparar, esquirlas, saqueadores |
 | 2 | Nivel de carga | Colonia | Paneles rompibles, guardias con jetpack, escopeta |
 | 3 | Pozo de ventilación | Colonia | Sierras, plataformas móviles, barriles explosivos |
-| 4 | Galería 4 | Infectado | Escopeteros, francotiradores, charcos tóxicos |
+| 4 | Galería 4 | Infectado | Escopeteros, francotiradores, hileras de sierras |
 | 5 | El criadero | Infectado | Plataformas que se desprenden, ametralladora |
 | 6 | Sala de bombas | Infectado | Ríos de líquido caliente, pesados con ametralladora |
 | 7 | La grieta | Ruinas | Francotiradores en altura, vetas luminosas, ascensores |
