@@ -61,6 +61,41 @@
   }
   window.addEventListener('storage', porSenal);
 
+/* ---- auto-silencio por inactividad ----
+   La última red, y la única que no depende de nada externo: ni de que la pestaña
+   se oculte, ni del origen, ni de que llegue una señal. Tres minutos sin tocar
+   una tecla y el juego se calla; vuelve solo al primer toque. Es lo que evita
+   que una pestaña olvidada quede sonando toda la tarde. */
+(function () {
+  var ESPERA = 3 * 60 * 1000;
+  var reloj = null;
+  var dormido = false;
+
+  function callar() {
+    dormido = true;
+    apagarTodo();
+    if (G.motor.pausarPorInactividad) G.motor.pausarPorInactividad();
+  }
+
+  function reanudar() {
+    if (!dormido) return;
+    dormido = false;
+    G.audio.reanudar();
+  }
+
+  function reiniciar() {
+    reanudar();
+    if (reloj) clearTimeout(reloj);
+    reloj = setTimeout(callar, ESPERA);
+  }
+
+  ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach(function (ev) {
+    window.addEventListener(ev, reiniciar, { passive: true });
+  });
+  reiniciar();
+})();
+
+
   // Si la marca ya estaba puesta al abrir, no se arranca sonando
   try {
     var marca = parseInt(window.localStorage.getItem('juegos.silencio'), 10);
