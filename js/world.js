@@ -839,16 +839,31 @@ G.crearMundo = function (numeroNivel, partida) {
 
   /* Cuanto más oscuro el ambiente, más se nota la linterna. Cada capa tiene el
      suyo: la superficie conserva algo de luz, el núcleo brilla por su cuenta. */
+  /* Cuánta luz hay donde no llega la linterna. Estaba tan bajo que fuera del
+     halo el nivel no se leía: se veía el personaje flotando en negro. */
   var ambientePorCapa = {
-    colonia: '#4e5866',
-    infectado: '#4a5a47',
-    ruinas: '#443c60',
-    nucleo: '#553830'
+    colonia: '#8e99a8',
+    infectado: '#87977f',
+    ruinas: '#7d739c',
+    nucleo: '#9a6b5c'
   };
+
+  /* El brillo es una preferencia: cada monitor y cada cuarto son distintos. */
+  var FACTOR_BRILLO = [0.72, 1, 1.28];
+
+  function ambienteDeLaCapa() {
+    var hex = ambientePorCapa[mundo.capa] || '#8e99a8';
+    var f = FACTOR_BRILLO[G.save.nivelBrillo()] || 1;
+    if (f === 1) return hex;
+    var r = G.clamp(Math.round(parseInt(hex.substr(1, 2), 16) * f), 0, 255);
+    var g = G.clamp(Math.round(parseInt(hex.substr(3, 2), 16) * f), 0, 255);
+    var b = G.clamp(Math.round(parseInt(hex.substr(5, 2), 16) * f), 0, 255);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
 
   function dibujarLuces(ctx, off) {
     lctx.globalCompositeOperation = 'source-over';
-    lctx.fillStyle = ambientePorCapa[mundo.capa] || '#8a94a0';
+    lctx.fillStyle = ambienteDeLaCapa();
     lctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
     lctx.globalCompositeOperation = 'lighter';
 
@@ -1010,7 +1025,7 @@ G.crearMundo = function (numeroNivel, partida) {
     var g = ctx.createRadialGradient(G.VIEW_W / 2, G.VIEW_H / 2, G.VIEW_H * 0.35,
                                      G.VIEW_W / 2, G.VIEW_H / 2, G.VIEW_W * 0.72);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0.38)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, G.VIEW_W, G.VIEW_H);
   }

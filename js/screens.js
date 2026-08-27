@@ -97,6 +97,7 @@ G.pantallas = (function () {
 
   var NOMBRES_GORE = ['sin sangre', 'sangre moderada', 'sangre completa'];
   var NOMBRES_EFECTOS = ['apagados', 'suaves', 'completos'];
+  var NOMBRES_BRILLO = ['tenue', 'normal', 'claro'];
 
   /* Recuadro de terminal: lo usan la intro y los registros encontrados. */
   function terminal(ctx, x, y, w, h, titulo) {
@@ -269,7 +270,8 @@ G.pantallas = (function () {
         ['R', 'reiniciar el nivel'],
         ['Q', 'desde la pausa, volver al menú'],
         ['M · G', 'silenciar · cambiar el nivel de sangre'],
-        ['T', 'efectos de cámara: sacudón y freeze al matar']
+        ['T', 'efectos de cámara: sacudón y freeze al matar'],
+        ['B', 'brillo de la mina']
       ]);
 
       filas.forEach(function (f, i) {
@@ -295,11 +297,11 @@ G.pantallas = (function () {
               { size: 11, align: 'center', color: '#c3ced8' });
       G.texto(ctx, 'T  efectos de cámara: ' + NOMBRES_EFECTOS[G.save.nivelEfectos()], W / 2, 206,
               { size: 11, align: 'center', color: '#c3ced8' });
-      G.texto(ctx, 'Q  volver al menú', W / 2, 224, { size: 11, align: 'center' });
-      G.texto(ctx, 'los efectos de cámara son el sacudón y el freeze de un instante al matar',
-              W / 2, 250, { size: 8, align: 'center', color: '#66727d' });
-      G.texto(ctx, 'el cambio de sangre se aplica al reiniciar el nivel', W / 2, 264,
-              { size: 8, align: 'center', color: '#66727d' });
+      G.texto(ctx, 'B  brillo: ' + NOMBRES_BRILLO[G.save.nivelBrillo()], W / 2, 224,
+              { size: 11, align: 'center', color: '#c3ced8' });
+      G.texto(ctx, 'Q  volver al menú', W / 2, 242, { size: 11, align: 'center' });
+      G.texto(ctx, 'el brillo se ve al instante · el cambio de sangre, al reiniciar el nivel',
+              W / 2, 266, { size: 8, align: 'center', color: '#66727d' });
     },
 
     muerte: function (ctx, t, partida) {

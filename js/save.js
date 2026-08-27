@@ -10,6 +10,7 @@ G.save = (function () {
     completado: false,
     gore: 2,            // 0 apagado · 1 moderado · 2 completo
     efectos: 2,         // sacudón y hit stop: 0 apagado · 1 suave · 2 completo
+    brillo: 1,          // luz ambiente: 0 tenue · 1 normal · 2 claro
     esquema: 'normal',  // normal | alternativo
     introVista: false,  // si ya vio la introducción de la historia
     mejorTiempo: {},    // por nivel, en segundos
@@ -28,6 +29,7 @@ G.save = (function () {
         completado: !!datos.completado,
         gore: datos.gore == null ? 2 : G.clamp(parseInt(datos.gore, 10), 0, 2),
         efectos: datos.efectos == null ? 2 : G.clamp(parseInt(datos.efectos, 10), 0, 2),
+        brillo: datos.brillo == null ? 1 : G.clamp(parseInt(datos.brillo, 10), 0, 2),
         esquema: datos.esquema === 'alternativo' ? 'alternativo' : 'normal',
         introVista: !!datos.introVista,
         mejorTiempo: (datos.mejorTiempo && typeof datos.mejorTiempo === 'object') ? datos.mejorTiempo : {},
@@ -89,6 +91,12 @@ G.save = (function () {
     },
     nivelGore: function () { return estado.gore; },
     nivelEfectos: function () { return estado.efectos; },
+    nivelBrillo: function () { return estado.brillo; },
+    cambiarBrillo: function () {
+      estado.brillo = (estado.brillo + 1) % 3;
+      escribir(estado);
+      return estado.brillo;
+    },
     cambiarEfectos: function () {
       estado.efectos = (estado.efectos + 1) % 3;
       escribir(estado);

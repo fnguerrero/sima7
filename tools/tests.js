@@ -1166,6 +1166,15 @@
     igual(G.save.nivelEfectos(), original, 'no volvió a la preferencia original');
   });
 
+  test('el brillo cicla y queda guardado', function () {
+    var original = G.save.nivelBrillo();
+    var a = G.save.cambiarBrillo();
+    var b = G.save.cambiarBrillo();
+    var c = G.save.cambiarBrillo();
+    afirmar(a !== b, 'no cambió');
+    igual(c, original, 'no volvió al punto de partida');
+  });
+
   test('el nivel de sangre cicla entre los tres modos', function () {
     var inicial = G.save.nivelGore();
     var a = G.save.cambiarGore();

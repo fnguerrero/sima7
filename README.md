@@ -31,8 +31,8 @@ Hay dos esquemas de teclas y se cambian desde el menú:
 | Ultra velocidad (barra VEL) | `C` | `L` |
 
 Iguales en los dos: `P`/`Esc` pausa · `R` reiniciar el nivel · `Q` volver al menú
-desde la pausa · `M` silenciar · `G` cambiar el nivel de sangre · `T` efectos de
-cámara · `F1` ver los controles.
+desde la pausa · `M` silenciar · `G` nivel de sangre · `T` efectos de cámara ·
+`B` brillo · `F1` ver los controles.
 
 El progreso se guarda solo: las profundidades quedan desbloqueadas entre
 sesiones, junto con el mejor puntaje y el mejor tiempo de cada nivel.
@@ -134,6 +134,10 @@ mejor oleada alcanzada.
 **Los efectos de cámara se pueden bajar o apagar** (`T`, o desde el menú): el
 sacudón y el freeze de unos milisegundos al matar. Le dan peso a los impactos,
 pero en exceso se sienten como que el juego se traba, así que van con perilla.
+
+**El brillo también** (`B`): tenue, normal o claro. La mina es oscura a propósito
+—la linterna del casco es la que abre el camino— pero cuánta luz queda fuera del
+halo depende del monitor y del cuarto, así que es preferencia y no dogma.
 
 ## Las cuatro capas
 
@@ -266,7 +270,9 @@ del tamaño del nivel, así 500 manchas siguen costando un solo `drawImage`.
 
 **La iluminación es una capa aparte** que se pinta en un canvas del viewport y se
 aplica con `multiply`. Es lo que hace que la mina se sienta mina sin tener que
-oscurecer cada tile a mano.
+oscurecer cada tile a mano. El color base de esa capa es el "cuánto se ve donde
+no llega la linterna", y sale de la capa de profundidad multiplicado por la
+preferencia de brillo.
 
 **El paso de física es fijo** (1/120 s con acumulador): un tirón del navegador no
 hace que el jugador atraviese una pared.

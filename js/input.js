@@ -19,6 +19,7 @@ G.input = (function () {
     KeyM: 'mute',
     KeyG: 'gore',
     KeyT: 'efectos',
+    KeyB: 'brillo',
     F1: 'ayuda'
   };
 
