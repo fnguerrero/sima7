@@ -6,6 +6,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#05070a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
 <title>SIMA-7</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -46,5 +49,11 @@
   <script src="js/screens.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/main.js"></script>
+<script>
+  // Habilita la instalacion en el celular y el juego sin conexion.
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+  }
+</script>
 </body>
 </html>
