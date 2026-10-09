@@ -226,7 +226,7 @@ tools/tests.js      la batería de tests
 ## Verificar sin jugar
 
 ```bash
-node "W:/Working Folder Personal/Sima7/tools/validar.js"
+node "W:/Working Folder Personal/Juegos/Sima7/tools/validar.js"
 ```
 
 Recorre los 10 niveles y confirma que hay un camino real desde el spawn hasta la
